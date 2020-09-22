@@ -27,7 +27,9 @@ if __name__ == '__main__':
     data.drop(["ID","ZIP Code"], axis=1,inplace=True)
     ## Convert Categorical Columns to Dummies
     cat_cols = ["Family","Education","Personal Loan","Securities Account","CD Account","Online","CreditCard"]
-    data = pd.get_dummies(data,columns=cat_cols,drop_first=True)
+    #data = pd.get_dummies(data,columns=cat_cols,drop_first=True)  # one_hot encode
+    for col in cat_cols:
+        data[col] = data[col].astype('category').cat.codes
 
     print("\nafter processing:")
     print(data.head())
@@ -35,12 +37,12 @@ if __name__ == '__main__':
     #### -------------- inspect data  -------------- ###
     n_samples, n_features = data.shape
     n_features -= 1 # exclude the target column
-    fig, axes = plt.subplots(2, n_features//2, sharey=True)
+    mod = n_features//2 if n_features % 2 == 0 else (n_features+1)//2
+    fig, axes = plt.subplots(2, mod, sharey=True)
 
-    target = 'Personal Loan_1'
+    target = 'Personal Loan'
 
     groups = data.groupby([target])
-    mod = (n_features//2)
     discrete_thres = 10
     i = -1
     for col in data.columns:
@@ -59,6 +61,8 @@ if __name__ == '__main__':
         if n_unqiue < discrete_thres:
            axes[r][c].set_xticks(data[col].unique())
         axes[r][c].set_xlabel(col)
+    if n_features % 2 != 0:
+        fig.delaxes(axes[1, mod-1])
     
     axes[0][0].set_ylabel('frequency')
     axes[1][0].set_ylabel('frequency')

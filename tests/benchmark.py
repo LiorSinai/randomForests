@@ -15,8 +15,8 @@ import pandas as pd
 
 if __name__ == '__main__':
     #### -------------- load data  -------------- ###
-    file_name = "UniversalBank_cleaned.csv"
-    target = "Personal Loan_1"
+    file_name = "tests/UniversalBank_cleaned.csv"
+    target = "Personal Loan"
 
     data = pd.read_csv(file_name)
     X = data.drop(columns=[target])

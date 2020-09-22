@@ -24,7 +24,7 @@ from benchmark2 import preorder_sk, sklearn_leaf_to_string, get_info_sklearn_lea
 class TestRandomForest(unittest.TestCase):
     def setUp(self):
         file_name = "tests/UniversalBank_cleaned.csv"
-        target = 'Personal Loan_1'
+        target = 'Personal Loan'
         data = pd.read_csv(file_name)
         X = data.drop(columns=[target])
         y = data[target]
@@ -68,10 +68,12 @@ class TestRandomForest(unittest.TestCase):
         skLeaves.append(get_info_sklearn_leaf(skForest.estimators_[0], 1))
         skLeaves.append(get_info_sklearn_leaf(skForest.estimators_[0], 2))
         myLeaves = []
-        myLeaves.append(myForest.trees[0].get_info())
-        myLeaves.append(myForest.trees[0].left.get_info())
-        myLeaves.append(myForest.trees[0].right.get_info())
-        
+        tree0 = myForest.trees[0]
+        for leaf in (tree0, tree0.left, tree0.right):
+            info = list(leaf.get_info())
+            info[1] = info[1][1]/sum(info[1])
+            myLeaves.append(info)
+
         for info_sk_leaf, info_my_leaf in zip (skLeaves, myLeaves):
             for (var1, var2) in zip(info_sk_leaf, info_my_leaf):
                 self.assertAlmostEqual(var1, var2)
@@ -80,11 +82,11 @@ class TestRandomForest(unittest.TestCase):
     def full_tree(self):
         # common parameters
         bootstrap = False   # True or False. If True, introduces randomness -> test results may vary
-        max_features = None # None or 'sqrt' If sqrt, introduces randomness -> test results may vary
+        max_features = 'sqrt' # None or 'sqrt' If sqrt, introduces randomness -> test results may vary
 
         myForest = RFC(n_trees=1, 
                        bootstrap=bootstrap,
-                       max_features=None,
+                       max_features=max_features,
                        random_state=42)
         skForest = RFC_sk(n_estimators=1, 
                           random_state=42, 
@@ -137,7 +139,7 @@ class TestRandomForest(unittest.TestCase):
         # common parameters
         bootstrap = False     # True or False. If True, introduces randomness -> test results may vary
         max_features = 'sqrt' # None or 'sqrt' If sqrt, introduces randomness -> test results may vary
-        n_trees = 40
+        n_trees = 20
 
         myForest = RFC(n_trees=n_trees, 
                        bootstrap=bootstrap,

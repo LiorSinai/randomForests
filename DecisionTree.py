@@ -3,35 +3,43 @@
 
 Random Forests from scratch
 
-Decision tree v1
-Tree is represent as a nested object
-
-TODO: so far only works for binary classes. Extened to many classes
+Decision tree v2
+- Tree is represent as a nested object
+- works for multi-class problems now
 
 """
 
 import numpy as np
 import pandas as pd
-from utilities import load_data
+from utilities import load_data, check_RandomState, encode_one_hot
 
-def gini_score(count, s1): s0 = count-s1; return 1 - (s0/count)**2 - (s1/count)**2
-def std_agg(count, s1, s2): return np.sqrt((s2/count) - (s1/count)**2)
-
+def gini_score(counts): 
+    score = 1
+    n = sum(counts)
+    for c in counts:
+        score -= (c/n)**2
+    return score
 
 class DecisionTree:
-    def __init__(self, X, y, categories=None, max_depth=None, depth=0, max_features=None, random_state=None):
+    def __init__(self, X, Y, max_depth=None, depth=0, max_features=None, random_state=None):
         self.n_samples, self.n_features = X.shape[0], X.shape[1]
-        self.RandomState = np.random.RandomState() if random_state is None else  random_state
+        self.RandomState = check_RandomState(random_state)
         self.max_features = max_features
         self.max_depth = max_depth
         self.depth = depth
 
         self.features = X.columns
+        if Y.ndim == 1:
+            Y = encode_one_hot(Y) # one-hot encoded y variable
+        elif Y.shape[1] == 1:
+            Y = encode_one_hot(Y) # one-hot encoded y variable
+
+        self.n_classes = Y.shape[1]
 
         # defaults before split
         self.score = float('inf')
-        self.impurity = gini_score(self.n_samples, sum(y))
-        self.val = np.mean(y)
+        self.val = Y.sum(axis=0)
+        self.impurity = gini_score(self.val)
         self.var_idx = None
         self.left = None
         self.right = None
@@ -39,7 +47,7 @@ class DecisionTree:
         # split
         max_depth_ = float('inf') if max_depth is None else max_depth
         if (self.depth < max_depth_) and (self.impurity > 0):
-            self.find_varsplit(X, y) 
+            self._find_varsplit(X, Y) 
 
     @property
     def is_leaf(self):
@@ -50,13 +58,14 @@ class DecisionTree:
         return self.features[self.var_idx]
 
     def get_max_depth(self):
+        "Calculate the maximum depth of the tree"
         if self.is_leaf:
             return 0 
         max_left = 0 if self.left is None else self.left.get_max_depth()
         max_right = 0 if self.right is None else self.right.get_max_depth()
         return max(max_left, max_right) + 1
 
-    def find_varsplit(self, X, y):
+    def _find_varsplit(self, X, Y):
         # choose n features for possible splits
         if self.max_features is not None:
             n_features = self.n_features
@@ -75,7 +84,7 @@ class DecisionTree:
 
         # make the split
         for i in features:
-            self.find_bettersplit(i, X, y)
+            self._find_bettersplit(i, X, Y)
         if self.is_leaf: 
             return
 
@@ -84,81 +93,71 @@ class DecisionTree:
         lhs = np.nonzero(x_split<=self.split_val)
         rhs = np.nonzero(x_split>self.split_val)
         self.left =  DecisionTree(X.iloc[lhs], 
-                                 y.iloc[lhs], 
+                                 Y[lhs[0], :], 
                                  depth=self.depth+1, 
                                  max_depth=self.max_depth, 
                                  max_features=self.max_features,
                                  random_state=self.RandomState)
         self.right = DecisionTree(X.iloc[rhs], 
-                                 y.iloc[rhs], 
+                                 Y[rhs[0], :], 
                                  depth=self.depth+1, 
                                  max_depth=self.max_depth, 
                                  max_features=self.max_features,
                                  random_state=self.RandomState)
 
-    # def find_bettersplit(self, var_idx, x, y):
-    #     x, y = x.values[self.idxs, var_idx], y.values[self.idxs]
-    #     #O(n**2) complexity
-    #     for i in range(1, self.n_samples-1):
-    #         lhs = x <= x[i]
-    #         n_lhs = lhs.sum()
-    #         rhs = x > x[i]
-    #         n_rhs = rhs.sum()
-    #         if n_rhs == 0:
-    #             continue
-    #         # compare std deviations
-    #         lhs_std = y[lhs].std()
-    #         rhs_std = y[rhs].std()
-    #         curr_score = (lhs_std * n_lhs + rhs_std * n_rhs)/(n_lhs + n_rhs)
-    #         if curr_score < self.score:
-    #             self.var_idx, self.score, self.split_val = var_idx, curr_score, x[i]
-
-    def find_bettersplit(self, var_idx, X, y, method='gini'):
-        X, y = X.values[:, var_idx], y.values 
+    def _find_bettersplit(self, var_idx, X, Y):
+        X = X.values[:, var_idx] 
 
         # sort the variables. Start with all on the right. Then move one sample to left one at a time
         order = np.argsort(X)
-        X_sort, y_sort = X[order], y[order]
-        lhs_count, lhs_sum, lhs_sum2 = 0., 0., 0.
-        rhs_count, rhs_sum, rhs_sum2 = self.n_samples, y_sort.sum(), np.square(y_sort).sum()
+        X_sort, Y_sort = X[order], Y[order, :]
+        rhs_count = Y.sum(axis=0)
+        lhs_count = np.zeros(rhs_count.shape)
 
         # O(n) complexity
         for i in range(0, self.n_samples-1):
-            xi, yi = X_sort[i], y_sort[i]
-            lhs_count += 1;  rhs_count -= 1
-            lhs_sum += yi;   rhs_sum -= yi
-            lhs_sum2 += yi**2;  rhs_sum2 -= yi**2
+            xi, yi = X_sort[i], np.argmax(Y_sort[i, :])
+            lhs_count[yi] += 1;  rhs_count[yi] -= 1
             if xi == X_sort[i+1]:
                 continue
-            # compare std deviations
-            if method == 'std':
-                lhs_std = std_agg(lhs_count, lhs_sum, lhs_sum2)
-                rhs_std = std_agg(rhs_count, rhs_sum, rhs_sum2)
-                curr_score = (lhs_std * lhs_count + rhs_std * rhs_count)/self.n_samples
-            elif method == 'gini':
-                # Gini Impurity
-                lhs_gini = gini_score(lhs_count, lhs_sum)
-                rhs_gini = gini_score(rhs_count, rhs_sum)
-                curr_score = (lhs_gini * lhs_count + rhs_gini * rhs_count)/self.n_samples
-            else:
-                raise Exception("Unknown parameter \"%s\" for method" % method)
+            # Gini Impurity
+            lhs_gini = gini_score(lhs_count)
+            rhs_gini = gini_score(rhs_count)
+            curr_score = (lhs_gini * lhs_count.sum() + rhs_gini * rhs_count.sum())/self.n_samples
             if curr_score < self.score:
                 thres = (xi + X_sort[i+1])/2
                 self.var_idx, self.score, self.split_val = var_idx, curr_score, thres
 
-    def predict(self, X):
-        if X.values.ndim == 1:
-            return np.array([self.predict_row(X.values)])
-        return np.array([self.predict_row(xi) for xi in X.values])
-
-    def predict_row(self, xi):
+    def _predict_row(self, xi):
         if self.is_leaf:
             return self.val
         t = self.left if xi[self.var_idx] <= self.split_val else self.right
-        return t.predict_row(xi)
+        return t._predict_row(xi)
+
+    def predict_prob(self, X):
+        "Return the probability in the final leaf for each class, given as the fraction of each class in that leaf"
+        if X.values.ndim == 1:
+            probs = np.array([self._predict_row(X)])
+        else:
+            probs = np.zeros((X.shape[0], self.n_classes))
+            for i, xi in enumerate(X.values):
+                vals = self._predict_row(xi)
+                probs[i, :] = vals/vals.sum()
+        return probs
+
+    def predict(self, X):
+        "Return the most likely class in the final leaf"
+        probs = self.predict_prob(X)
+        return np.argmax(probs, axis=1)
+
+    def predict_count(self, X):
+        "Return the sample count in the final leaf for each class"
+        if X.values.ndim == 1:
+            return np.array([self._predict_row(X.values)])
+        return np.array([self._predict_row(xi) for xi in X.values])
 
     def __repr__(self):
-        s = 'n_samples: {:d}; val: {:.5f}'.format(self.n_samples, self.val)
+        s = 'n_samples: {:d}; val: {}'.format(self.n_samples, self.val)
         if not self.is_leaf:
             s += ' score: {:.5f}; split: {}<={:.3f}'.format(self.impurity, self.split_name, self.split_val)
         return s
@@ -170,6 +169,7 @@ class DecisionTree:
             return self.n_samples, self.val, self.var_idx, self.split_val, self.impurity
 
     def get_n_splits(self):
+        "Return the number leaves (number of parameters/2) not counting the final leaves in the tree"
         n_leaves = 0 if self.is_leaf else 1
         if self.left is not None:
             n_leaves += self.left.get_n_splits()
@@ -191,11 +191,18 @@ class DecisionTree:
 
 if __name__ == '__main__':
     # load Data
+    # Binary class test with 5000 samples
     file_name = 'tests/UniversalBank_cleaned.csv'
-    target = "Personal Loan_1"
+    target = "Personal Loan"
+    # 3-class test with 1000 samples
+    # file_name = 'tests/Iris_cleaned.csv'  
+    # target = "Species"
     X_train, X_test, y_train, y_test = load_data(file_name, target, test_size=0.2, seed=42)
 
     tree = DecisionTree(X_train, y_train)
+    # from sklearn.tree import DecisionTreeClassifier
+    # tree = DecisionTreeClassifier()
+    # tree.fit(X_train, y_train)
 
     # descriptors
     print("max depth: %d" % tree.get_max_depth())
@@ -210,5 +217,6 @@ if __name__ == '__main__':
     print("test accuracy:  %.2f%%" % (acc_test*100))
 
     for i, leaf in enumerate(tree.preorder()):
-            d = leaf.depth
-            print('%03d'%i,'-'*d, leaf)
+        d = leaf.depth
+        print('%03d'%i,'-'*d, leaf)
+        

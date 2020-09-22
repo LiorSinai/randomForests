@@ -172,7 +172,7 @@ if __name__ == '__main__':
 
     # load data
     file_name = "tests/UniversalBank_cleaned.csv"
-    target = "Personal Loan_1"
+    target = "Personal Loan"
     X_train, X_test, y_train, y_test = load_data(file_name, target, test_size=0.2, seed=42)
 
     forest.fit(X_train, y_train)

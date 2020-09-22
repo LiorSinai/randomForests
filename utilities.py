@@ -39,3 +39,25 @@ def load_data(file_name:str, target_name: str, test_size=0.1, seed=1):
     y_test = y[n_train:]
 
     return X_train, X_test, y_train, y_test
+
+
+def encode_one_hot(data): # note: pd.get_dummies(df) does the same
+    # https://www.kite.com/python/answers/how-to-do-one-hot-encoding-with-numpy-in-python
+    one_hot = np.zeros((data.size, data.max()+1))
+    rows = np.arange(data.size)
+    one_hot[rows, data] = 1
+    return one_hot
+
+
+def check_RandomState(random_state):
+    """ Parse different input types for the random state"""
+    if  random_state is None: 
+        rng = np.random.RandomState() 
+    elif isinstance(random_state, int): 
+        # seed the random state with this integer
+        rng = np.random.RandomState(random_state) 
+    elif isinstance(random_state, np.random.RandomState):
+        rng = random_state
+    else:
+        raise ValueError ("improper type \'%s\' for random_state parameter" % type(random_state))
+    return rng

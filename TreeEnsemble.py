@@ -11,7 +11,8 @@ import pandas as pd
 from DecisionTree import DecisionTree
 from sklearn.inspection import permutation_importance
 
-from utilities import load_data
+import matplotlib.pyplot as plt
+from utilities import load_data, load_data, check_RandomState, encode_one_hot
 
 class RandomForestClassifier:
     def __init__(self, 
@@ -22,7 +23,7 @@ class RandomForestClassifier:
                 max_features=None, 
                 bootstrap=True, 
                 replacement=True):
-        self.RandomState = np.random.RandomState(random_state)
+        self.RandomState = check_RandomState(random_state)
         self.sample_size = sample_size
         self.max_depth = max_depth
         self.n_trees = n_trees
@@ -31,21 +32,28 @@ class RandomForestClassifier:
         self.replacement= replacement
 
         self.n_features = None
+        self.n_classes = None
         self.feature_importances_ = None
         
-    def fit(self, X, y):
+    def fit(self, X, Y):
         if self.bootstrap and (not self.replacement) and (self.sample_size is None): 
                 print("Warning: TreeEnsemble.fit() sample size without replacement should be less than n_samples else"\
                       " every tree uses all samples")
+
+        if Y.ndim == 1:
+            Y = encode_one_hot(Y) # one-hot encoded y variable
+        elif Y.shape[1] == 1:
+            Y = encode_one_hot(Y) # one-hot encoded y variable
                 
-        self.trees = [self.create_tree(X, y) for i in range(self.n_trees)]
+        self.trees = [self.create_tree(X, Y) for i in range(self.n_trees)]
         
         # set attributes
         self.n_features = X.shape[1]
+        self.n_classes = Y.shape[1]
         self.feature_importances_ = self.gini_feature_importance()
 
-    def create_tree(self, X, y, categories=None):
-        assert len(X) == len(y), ""
+    def create_tree(self, X, Y, categories=None):
+        assert len(X) == len(Y), ""
         n_samples = X.shape[0]
 
         if self.bootstrap:
@@ -54,19 +62,20 @@ class RandomForestClassifier:
                 rand_idxs = self.RandomState.randint(0, n_samples, sample_size)
             else: # without replacement
                 rand_idxs = self.RandomState.permutation(np.arange(n_samples))[:sample_size] 
-            X_, y_ = X.iloc[rand_idxs, :], y.iloc[rand_idxs]
+            X_, Y_ = X.iloc[rand_idxs, :], Y[rand_idxs]
         else:
-            X_, y_ = X.copy(), y.copy() # do nothing to the data
+            X_, Y_ = X.copy(), Y.copy() # do nothing to the data
 
-        return DecisionTree(X_, y_, categories=categories,
+        return DecisionTree(X_, Y_,
                             max_depth=self.max_depth, 
                             max_features=self.max_features,
                             random_state=self.RandomState
                             )
 
     def predict(self, X):
-        probs = np.mean([t.predict(X) for t in self.trees], axis=0)
-        return (probs > 0.5).astype(int)
+        probs = np.sum([t.predict_prob(X) for t in self.trees], axis=0)
+        #probs = np.sum([t.predict_count(X) for t in self.trees], axis=0)
+        return np.argmax(probs, axis=1)
 
     def score(self, X, y):
         y_pred = self.predict(X)
@@ -112,16 +121,21 @@ class RandomForestClassifier:
 
 if __name__ == "__main__":
     # load data
+    # Binary class test with 5000 samples
     file_name = 'tests/UniversalBank_cleaned.csv'
-    target = "Personal Loan_1"
+    target = "Personal Loan"
+    # 3-class test with 1000 samples
+    # file_name = 'tests/Iris_cleaned.csv'  
+    # target = "Species"
+
     X_train, X_test, y_train, y_test = load_data(file_name, target, test_size=0.2, seed=42)
 
     forest = RandomForestClassifier(n_trees=10, 
                                     bootstrap=True,
                                     replacement=True,
-                                    sample_size = None,
+                                    sample_size =  None,
                                     max_features = 'sqrt',
-                                    max_depth = 15,
+                                    #max_depth = 15,
                                     random_state=42)
 
     forest.fit(X_train, y_train)
@@ -136,7 +150,8 @@ if __name__ == "__main__":
     print("train accuracy: %.2f%%" % (acc_train*100))
     print("test accuracy:  %.2f%%" % (acc_test*100))
 
-    fi1 = forest.perm_feature_importance(X_train, y_train)
+    ### ----------- Feaure importance ----------- ###### 
+    fi1 = forest.perm_feature_importance(X_train, y_train) # very slow
     fi2 = forest.feature_importances_
 
     for fi in (fi1, fi2):
@@ -144,3 +159,19 @@ if __name__ == "__main__":
         print("Feature importances")
         for col, val in zip(X_train.columns[order], fi[order]):
             print('%s: %.4f' % (col, val)) 
+
+    ### ----------- Fitting acuracy per number of trees ----------- ###### 
+    # fig, ax = plt.subplots()
+    # preds = np.stack([t.predict_prob(X_test) for t in forest.trees])
+    # n_trees = forest.n_trees
+    # n = len(y_test)
+    # acc = np.zeros(n_trees)
+    # for i in range(0, n_trees):
+    #     y_pred = np.argmax(np.sum(preds[:i+1, :, :], axis=0), axis=1)
+    #     acc[i] = np.mean(y_pred == y_test)
+    # ax.plot(acc)
+    # ax.set_xlabel("number of trees")
+    # ax.set_ylabel("accuracy")
+
+    plt.show()
+
