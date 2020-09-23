@@ -20,96 +20,111 @@ def gini_score(counts):
     score = 1
     n = sum(counts)
     for c in counts:
-        score -= (c/n)**2
+        p = c/n
+        score -= p*p
     return score
 
 class DecisionTree:
-    def __init__(self, X, Y, max_depth=None, depth=0, max_features=None, random_state=None):
+    def __init__(self, X, Y, max_depth=None, max_features=None, random_state=None):
         self.n_samples, self.n_features = X.shape[0], X.shape[1]
         self.RandomState = check_RandomState(random_state)
         self.max_features = max_features
         self.max_depth = max_depth
-        self.depth = depth
 
-        self.features = X.columns
         if Y.ndim == 1:
             Y = encode_one_hot(Y) # one-hot encoded y variable
         elif Y.shape[1] == 1:
             Y = encode_one_hot(Y) # one-hot encoded y variable
 
+        # initialise arrays
+        self.tree_ = BinaryTree() # tree_.children_left and tree_.children_right
+        self.n_samples = []
+        self.scores = []
+        self.values = []
+        self.impurities = []
+        self.split_features = []
+        self.split_values = []
+
+        # set internal variables
         self.n_classes = Y.shape[1]
-
-        # defaults before split
-        self.score = float('inf')
-        self.val = Y.sum(axis=0)
-        self.impurity = gini_score(self.val)
-        self.var_idx = None
-        self.left = None
-        self.right = None
-        
-        # split
-        max_depth_ = float('inf') if max_depth is None else max_depth
-        if (self.depth < max_depth_) and (self.impurity > 0):
-            self._find_varsplit(X, Y) 
-
-    @property
-    def is_leaf(self):
-        return self.score == float('inf')
-    
-    @property
-    def split_name(self):
-        return self.features[self.var_idx]
-
-    def get_max_depth(self):
-        "Calculate the maximum depth of the tree"
-        if self.is_leaf:
-            return 0 
-        max_left = 0 if self.left is None else self.left.get_max_depth()
-        max_right = 0 if self.right is None else self.right.get_max_depth()
-        return max(max_left, max_right) + 1
-
-    def _find_varsplit(self, X, Y):
-        # choose n features for possible splits
+        self.features = X.columns
+        self.max_depth_ = float('inf') if max_depth is None else max_depth
         if self.max_features is not None:
-            n_features = self.n_features
             if self.max_features is 'sqrt':
-                n = np.ceil(np.sqrt(n_features)).astype(int)
+                n = np.ceil(np.sqrt(self.n_features)).astype(int)
             elif isinstance(self.max_features, int):
-                n = min(self.max_features, n_features)
+                n = min(self.max_features, self.n_features)
             else:
                 raise Exception('Unknown parameter \'%s\' for max_features' % self.max_features)
         else:
             n = self.n_features 
-            # the random shuffling ensures a random variable is used if 2 splits are equal
-            # this is most noticeable with small sample sizes
-            # else there will be a slight bias towards a variable based on its position in the array
-        features = self.RandomState.permutation(self.n_features)[:n] # randomly shuffle features
+        self.n_features_split = n
+        self.size = 0 # current node = size - 1
+
+        # initial split which recursively calls itself
+        self._find_varsplit(X, Y, 0) 
+
+        # set attributes
+        self.depths = self.tree_.find_depths()
+
+    def get_n_splits(self):
+        return self.tree_.get_n_splits(0)
+
+    def get_max_depth(self):
+        return self.tree_.get_max_depth(0)
+
+    def is_leaf(self, node_id):
+        return self.scores[node_id] == float('inf')
+    
+    def split_name(self, node_id):
+        return self.features[self.split_features[node_id]]
+
+    def _set_defaults(self, node_id, Y):
+        self.scores.append(float('inf'))
+        val = Y.sum(axis=0)
+        self.values.append(val)
+        self.impurities.append(gini_score(val))
+        self.split_features.append(None)
+        self.split_values.append(None)
+        self.n_samples.append(Y.shape[0])
+        self.tree_.children_left.append(-1)
+        self.tree_.children_right.append(-1)
+    
+    def _find_varsplit(self, X, Y, depth):
+        node_id = self.size
+        self.size += 1
+        self._set_defaults(node_id, Y)
+        if self.impurities[node_id] == 0: # only one class in this node
+            return
+        
+        # random shuffling ensures a random variable is used if 2 splits are equal or if all features are used
+        features = self.RandomState.permutation(self.n_features)[:self.n_features_split]
 
         # make the split
         for i in features:
-            self._find_bettersplit(i, X, Y)
-        if self.is_leaf: 
-            return
+            self._find_bettersplit(i, X, Y, node_id)
+        if self.is_leaf(node_id):
+            # a split was not made, most likely because all X values are the same
+            features2 = set(range(self.n_features)).difference(features) #try all other features
+            features2 = self.RandomState.permutation(list(features2))
+            for i in features2:
+                self._find_bettersplit(i, X, Y, node_id)
+            if self.is_leaf(node_id):
+                return # give up
 
         # make children
-        x_split = X.values[:, self.var_idx]
-        lhs = np.nonzero(x_split<=self.split_val)
-        rhs = np.nonzero(x_split>self.split_val)
-        self.left =  DecisionTree(X.iloc[lhs], 
-                                 Y[lhs[0], :], 
-                                 depth=self.depth+1, 
-                                 max_depth=self.max_depth, 
-                                 max_features=self.max_features,
-                                 random_state=self.RandomState)
-        self.right = DecisionTree(X.iloc[rhs], 
-                                 Y[rhs[0], :], 
-                                 depth=self.depth+1, 
-                                 max_depth=self.max_depth, 
-                                 max_features=self.max_features,
-                                 random_state=self.RandomState)
-
-    def _find_bettersplit(self, var_idx, X, Y):
+        if depth < self.max_depth_: 
+            x_split = X.values[:, self.split_features[node_id]]
+            lhs = np.nonzero(x_split<=self.split_values[node_id])
+            rhs = np.nonzero(x_split> self.split_values[node_id])
+            self.tree_.children_left[node_id] = self.size
+            self._find_varsplit(X.iloc[lhs], Y[lhs[0], :], depth+1)
+            self.tree_.children_right[node_id] = self.size
+            self._find_varsplit(X.iloc[rhs], Y[rhs[0], :], depth+1)
+    
+    def _find_bettersplit(self, var_idx, X, Y, node_id):
         X = X.values[:, var_idx] 
+        n_samples = self.n_samples[node_id]
 
         # sort the variables. Start with all on the right. Then move one sample to left one at a time
         order = np.argsort(X)
@@ -117,8 +132,7 @@ class DecisionTree:
         rhs_count = Y.sum(axis=0)
         lhs_count = np.zeros(rhs_count.shape)
 
-        # O(n) complexity
-        for i in range(0, self.n_samples-1):
+        for i in range(0, n_samples-1):
             xi, yi = X_sort[i], np.argmax(Y_sort[i, :])
             lhs_count[yi] += 1;  rhs_count[yi] -= 1
             if xi == X_sort[i+1]:
@@ -126,26 +140,27 @@ class DecisionTree:
             # Gini Impurity
             lhs_gini = gini_score(lhs_count)
             rhs_gini = gini_score(rhs_count)
-            curr_score = (lhs_gini * lhs_count.sum() + rhs_gini * rhs_count.sum())/self.n_samples
-            if curr_score < self.score:
-                thres = (xi + X_sort[i+1])/2
-                self.var_idx, self.score, self.split_val = var_idx, curr_score, thres
+            curr_score = (lhs_gini * lhs_count.sum() + rhs_gini * rhs_count.sum())/n_samples
+            if curr_score < self.scores[node_id]:
+                self.split_features[node_id] = var_idx
+                self.scores[node_id] = curr_score
+                self.split_values[node_id]= (xi + X_sort[i+1])/2
 
     def _predict_row(self, xi):
-        if self.is_leaf:
-            return self.val
-        t = self.left if xi[self.var_idx] <= self.split_val else self.right
-        return t._predict_row(xi)
+        next_node = 0
+        while not self.is_leaf(next_node):
+            left = self.tree_.children_left[next_node]
+            right = self.tree_.children_right[next_node]
+            next_node = left if xi[self.split_features[next_node]] <= self.split_values[next_node] else right
+        return self.values[next_node]
 
     def predict_prob(self, X):
         "Return the probability in the final leaf for each class, given as the fraction of each class in that leaf"
         if X.values.ndim == 1:
             probs = np.array([self._predict_row(X)])
         else:
-            probs = np.zeros((X.shape[0], self.n_classes))
-            for i, xi in enumerate(X.values):
-                vals = self._predict_row(xi)
-                probs[i, :] = vals/vals.sum()
+            probs = np.array([self._predict_row(xi) for xi in X.values])
+            probs /= np.sum(probs, axis=1)[:, None]
         return probs
 
     def predict(self, X):
@@ -159,38 +174,94 @@ class DecisionTree:
             return np.array([self._predict_row(X.values)])
         return np.array([self._predict_row(xi) for xi in X.values])
 
-    def __repr__(self):
-        s = 'n_samples: {:d}; val: {}'.format(self.n_samples, self.val)
-        if not self.is_leaf:
-            s += ' score: {:.5f}; split: {}<={:.3f}'.format(self.impurity, self.split_name, self.split_val)
-        return s
-    
-    def get_info(self):
-        if self.is_leaf:
-            return self.n_samples, self.val
+    def get_info(self, node_id):
+        n_samples =  self.n_samples[node_id]
+        val =        self.values[node_id]
+        impurity =   self.impurities[node_id]
+        var_idx    = self.split_features[node_id]
+        split_val  = self.split_values[node_id]
+        if self.is_leaf(node_id):
+            return n_samples, val
         else:
-            return self.n_samples, self.val, self.var_idx, self.split_val, self.impurity
+            return n_samples, val, var_idx, split_val, impurity
 
-    def get_n_splits(self):
-        "Return the number leaves (number of parameters/2) not counting the final leaves in the tree"
-        n_leaves = 0 if self.is_leaf else 1
-        if self.left is not None:
-            n_leaves += self.left.get_n_splits()
-        if self.right is not None:
-            n_leaves += self.right.get_n_splits()
+    def leaf_to_string(self, node_id):
+        if self.is_leaf(node_id):
+            n_samples, val = self.get_info(node_id)
+            s = 'n_samples: {:d}; val: {}'.format(n_samples, val)
+        else:
+            n_samples, val, var_idx, split_val, impurity = self.get_info(node_id)
+            split_name = self.split_name(node_id)
+            s =  'n_samples: {:d}; val: {}'.format(n_samples, val)
+            s += ' score: {:.5f}; split: {}<={:.3f}'.format(impurity, split_name, split_val)
+        return s
+
+
+class BinaryTree():
+    def __init__(self):
+        self.children_left = []
+        self.children_right = []
+
+    @property
+    def size(self):
+        return max(len(self.children_left), len(self.children_right))
+
+    def find_depths(self):
+        depths = np.zeros(self.size, dtype=int)
+        depths[0] = -1
+        stack = [(0, 0)] # (parent, node_id)
+        while stack:
+            parent, node_id = stack.pop()
+            if node_id == -1:
+                continue
+            depths[node_id] = depths[parent] + 1
+            left = self.children_left[node_id]
+            right = self.children_right[node_id]
+            stack.extend([(node_id, left), (node_id, right)])
+        return depths
+
+    def is_leaf(self, node_id):
+        left = self.children_left[node_id]
+        right = self.children_right[node_id]
+        return right == left #(left == -1) and (right == -1)
+
+    def get_max_depth(self, node_id=0):
+        "Calculate the maximum depth of the tree"
+        if self.is_leaf(node_id):
+            return 0 
+        left = self.children_left[node_id]
+        right = self.children_right[node_id]
+        return max(self.get_max_depth(left), self.get_max_depth(right)) + 1
+
+    def get_n_splits(self, node_id=0):
+        "Return the number of leaves (number of parameters/2) not counting the final leaves in the tree"
+        n_leaves = 0 
+        stack = [0]
+        while stack:
+            node_id = stack.pop()
+            if node_id == -1:
+                continue
+            if not self.is_leaf(node_id):
+                n_leaves += 1
+            left = self.children_left[node_id]
+            right = self.children_right[node_id]
+            stack.extend([left, right])
         return n_leaves  
 
-    def preorder(self, depth=0):
+    def preorder(self, node_id=0):
         "Pre-order tree traversal"
-        if self is not None:
-            yield self
-        if self.left is not None:
-            for leaf in self.left.preorder(depth=depth+1):
+        # Note: the parallel arrays are already in pre-order
+        # Therefore can just return np.arange(self.size)
+        if node_id != -1:
+            yield node_id
+        left = self.children_left[node_id]
+        right = self.children_right[node_id]
+        if left != -1:
+            for leaf in self.preorder(left):
                 yield leaf
-        if self.right is not None:
-            for leaf in self.right.preorder(depth=depth+1):
+        if right != -1:
+            for leaf in self.preorder(right):
                 yield leaf
-
 
 if __name__ == '__main__':
     # load Data
@@ -207,10 +278,10 @@ if __name__ == '__main__':
     y = data[target]
     X_train, X_test, y_train, y_test = split_data(X, y, test_size=0.2, seed=42)
 
-    tree = DecisionTree(X_train, y_train)
+    tree = DecisionTree(X_train, y_train, random_state=0, max_depth=None)
     # from sklearn.tree import DecisionTreeClassifier
     # tree = DecisionTreeClassifier()
-    # tree.fit(X_train, y_train)
+    # tree.fit(X_train, y_train, random_state=42)
 
     # descriptors
     print("max depth: %d" % tree.get_max_depth())
@@ -224,7 +295,9 @@ if __name__ == '__main__':
     print("train accuracy: %.2f%%" % (acc_train*100))
     print("test accuracy:  %.2f%%" % (acc_test*100))
 
-    for i, leaf in enumerate(tree.preorder()):
-        d = leaf.depth
-        print('%03d'%i,'-'*d, leaf)
+    depths = tree.depths
+    for i, leaf in enumerate(tree.tree_.preorder()):
+        d = depths[leaf]
+        print('%03d'%i,'-'*d, tree.leaf_to_string(leaf))
+        #print('%03d'%i,'-'*d, leaf)
         

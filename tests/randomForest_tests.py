@@ -41,8 +41,8 @@ class TestRandomForest(unittest.TestCase):
 
         leaves = []
         tree0 = forest.trees[0]
-        for leaf in (tree0, tree0.left, tree0.right):
-            info = list(leaf.get_info())
+        for node in (0, 1, 2):
+            info = list(tree0.get_info(node))
             info[1] = info[1][1]/sum(info[1])
             leaves.append(info)
 
@@ -86,16 +86,15 @@ class TestRandomForest(unittest.TestCase):
 
         depths =[t.get_max_depth() for t in forest.trees]
         n_leaves = [t.get_n_splits() for t in forest.trees]
-        self.assertEqual(sum(depths), 264)
-        self.assertEqual(sum(n_leaves), 1658)
+        self.assertEqual(sum(depths), 265)
+        self.assertEqual(sum(n_leaves), 1716)
 
         # should be mostly correct on the training data
         y0 = forest.predict(X_train)
-        self.assertEqual(sum(y0==y_train), 3998)
+        self.assertEqual(sum(y0==y_train), 4000)
 
         y1 = forest.predict(X_test)
-        self.assertEqual(sum(y1==y_test), 986)
-
+        self.assertEqual(sum(y1==y_test), 984)
 
 
 def suite():

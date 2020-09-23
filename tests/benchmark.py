@@ -27,7 +27,10 @@ if __name__ == '__main__':
 
     #### -------------- simplest strategy -------------- ###
     print("Based on Income>100 only:")
-    y_pred = X_train['Income'] >= 100
+    y_pred = X['Income'] >= 100
+    acc_test = np.mean(y_pred == y)
+    print("full accuracy:  %.2f%%" % (acc_test*100))
+    y_pred = (X_train['Income'] >= 100)
     acc_train = np.mean(y_pred == y_train)
     print("train accuracy: %.2f%%" % (acc_train*100))
     y_pred = X_test['Income'] >= 100
@@ -57,13 +60,19 @@ if __name__ == '__main__':
     order = np.argsort(fi_means) # order by magnitude
 
     fig, ax = plt.subplots()
-    ax.barh(range(n_features), fi_means[order], xerr=fi_std[order])
+    inds = np.arange(n_features)
+    width = 0.4
+    fi = fi_means[order]/fi_means.sum()
+    ax.barh(inds+width/2, fi, width, xerr=fi_std[order], label='permutation')
+    fi = rfc.feature_importances_[order]
+    ax.barh(inds-width/2, fi, width, label='weighted impurity')
     #ax.grid(True)
-    ax.set_yticks(range(n_features))
+    ax.legend(loc='upper right', bbox_to_anchor=(1, 0.85))
+    ax.set_yticks(inds)
     ax.set_yticklabels(X.columns[order])
     ax.set_ylabel('feature')
-    ax.set_xlabel('feature importance score')
-    ax.set_title("Importance for the random forest classifier")
+    ax.set_xlabel('relative feature importance score')
+    ax.set_title("Feature importances")
 
     ### ----------- Fitting acuracy per number of trees ----------- ###### 
     fig, ax = plt.subplots()

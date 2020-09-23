@@ -8,10 +8,8 @@ https://course18.fast.ai/lessonsml1/lesson5.html
 
 import numpy as np
 import pandas as pd
-from DecisionTree import DecisionTree
-from sklearn.inspection import permutation_importance
 
-import matplotlib.pyplot as plt
+from DecisionTree import DecisionTree
 from utilities import split_data, split_data, check_RandomState, encode_one_hot
 
 class RandomForestClassifier:
@@ -86,15 +84,18 @@ class RandomForestClassifier:
            Independent of input or output data
         """
         feature_importances = np.zeros((self.n_trees, self.n_features))
-        total_samples = self.trees[0].n_samples
+        total_samples = self.trees[0].n_samples[0]
 
         for i, tree in enumerate(self.trees):
-            for leaf in tree.preorder():
-                if leaf.is_leaf:
+            for node in range(len(tree.impurities)):
+                if tree.is_leaf(node):
                     continue 
-                j = leaf.var_idx
+                j = tree.split_features[node]
+                impurity = tree.impurities[node]
+                score = tree.scores[node]
+                n_samples = tree.n_samples[node]
                 # feature_importances      = (decrease in node impurity) * (probability of reaching node ~ proportion of samples)
-                feature_importances[i, j] += (leaf.impurity-leaf.score) * (leaf.n_samples/total_samples)
+                feature_importances[i, j] += (impurity-score) * (n_samples/total_samples)
 
         # normalise per tree
         feature_importances = feature_importances/feature_importances.sum(axis=1)[:, None]
@@ -116,7 +117,7 @@ class RandomForestClassifier:
                 y_pred = self.predict(X_sub)
                 feature_importances[i, j] = acc_full - np.mean(y_pred == y)
 
-        return np.mean(feature_importances, axis=0)
+        return {'means': np.mean(feature_importances, axis=0), 'stds': np.std(feature_importances, axis=0)}
 
 
 if __name__ == "__main__":
@@ -131,14 +132,15 @@ if __name__ == "__main__":
     data = pd.read_csv(file_name)
     X = data.drop(columns=[target])
     y = data[target]
+    n_samples, n_features = X.shape[0], X.shape[1]
     X_train, X_test, y_train, y_test = split_data(X, y, test_size=0.2, seed=42)
 
-    forest = RandomForestClassifier(n_trees=10, 
+    forest = RandomForestClassifier(n_trees=20, 
                                     bootstrap=True,
                                     replacement=True,
-                                    sample_size =  None,
-                                    max_features = 'sqrt',
-                                    #max_depth = 15,
+                                    #sample_size=round(0.8*X_train.shape[0]), # default is None
+                                    max_features='sqrt', # default is None
+                                    #max_depth = 12, # default is None
                                     random_state=42)
 
     forest.fit(X_train, y_train)
@@ -154,16 +156,34 @@ if __name__ == "__main__":
     print("test accuracy:  %.2f%%" % (acc_test*100))
 
     ### ----------- Feaure importance ----------- ###### 
-    fi1 = forest.perm_feature_importance(X_train, y_train) # very slow
+    fi_perm   = forest.perm_feature_importance(X_train, y_train) # very slow
+    fi1 = fi_perm['means']
     fi2 = forest.feature_importances_
-
     for fi in (fi1, fi2):
         order = np.argsort(fi)[::-1] # descending order
         print("Feature importances")
         for col, val in zip(X_train.columns[order], fi[order]):
             print('%s: %.4f' % (col, val)) 
 
-    ### ----------- Fitting acuracy per number of trees ----------- ###### 
+    # import matplotlib.pyplot as plt # comment out to avoid dependency 
+    # order = np.argsort(fi_perm['means'])
+
+    # fig, ax = plt.subplots()
+    # inds = np.arange(n_features)
+    # width = 0.4
+    # fi = fi_perm['means'][order]/fi_perm['means'].sum()
+    # ax.barh(inds+width/2, fi, width, xerr=fi_perm['stds'][order], label='permutation')
+    # fi = forest.feature_importances_[order]
+    # ax.barh(inds-width/2, fi, width, label='weight impurity')
+    # #ax.grid(True)
+    # ax.legend(loc='upper right', bbox_to_anchor=(1, 0.85))
+    # ax.set_yticks(inds)
+    # ax.set_yticklabels(X.columns[order])
+    # ax.set_ylabel('feature')
+    # ax.set_xlabel('relative feature importance score')
+    # ax.set_title("Feature importances")
+
+    # ### ----------- Fitting acuracy per number of trees ----------- ###### 
     # fig, ax = plt.subplots()
     # preds = np.stack([t.predict_prob(X_test) for t in forest.trees])
     # n_trees = forest.n_trees
@@ -176,5 +196,5 @@ if __name__ == "__main__":
     # ax.set_xlabel("number of trees")
     # ax.set_ylabel("accuracy")
 
-    plt.show()
+    # plt.show()
 

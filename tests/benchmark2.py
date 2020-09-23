@@ -192,7 +192,7 @@ if __name__ == '__main__':
     skTree0 = skForest.estimators_[0]
     myTree0 = forest.trees[0]
 
-    if 1==0:
+    if 1==1:
         # print Sklearn tree
         depths, _, _ = traverse_tree_sk(skTree0) 
         for i, node_id in enumerate(preorder_sk(skTree0)):
@@ -212,8 +212,8 @@ if __name__ == '__main__':
         for node_id in (preorder_sk(skTree0)):
             skLeaves.append(get_info_sklearn_leaf(skTree0, node_id))
         myLeaves = []
-        for j, leaf in enumerate(myTree0.preorder()):
-            myLeaves.append(leaf.get_info())
+        for j, leaf in enumerate(myTree0.tree_.preorder()):
+            myLeaves.append(myTree0.get_info(leaf))
   
         # print which values are the same
         # note: leaves may be printed in different orders. When sample number is low, the choice for splitting is almost random
