@@ -40,7 +40,7 @@ if __name__ == '__main__':
 
     #### -------------- random forest classifier  -------------- ###
 
-    rfc = RandomForestClassifier(random_state=42, oob_score=True)
+    rfc = RandomForestClassifier(random_state=42, oob_score=True, min_samples_leaf=3)
     rfc.fit(X_train, y_train)
 
     # display descriptors

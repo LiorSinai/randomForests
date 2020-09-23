@@ -57,3 +57,17 @@ def check_RandomState(random_state):
     else:
         raise ValueError ("improper type \'%s\' for random_state parameter" % type(random_state))
     return rng
+
+def check_sample_size(sample_size, n_samples):
+    if sample_size is None:
+        n = n_samples
+    elif isinstance(sample_size, int):
+        if sample_size == 1:
+            print("Warning, interpreting sample_size as 1 sample. Use sample_size=1.0 for 100% of the data")
+        n = min(sample_size, n_samples)
+    elif isinstance(sample_size, float):
+        frac = min(sample_size, 1)
+        n = int(frac*n_samples)
+    else:
+        raise ValueError("Improper type \'%s\' for sample_size" %type(sample_size))
+    return n

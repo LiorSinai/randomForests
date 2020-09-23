@@ -25,11 +25,12 @@ def gini_score(counts):
     return score
 
 class DecisionTree:
-    def __init__(self, X, Y, max_depth=None, max_features=None, random_state=None):
+    def __init__(self, X, Y, max_depth=None, max_features=None, min_samples_leaf=1, random_state=None):
         self.n_samples, self.n_features = X.shape[0], X.shape[1]
         self.RandomState = check_RandomState(random_state)
         self.max_features = max_features
         self.max_depth = max_depth
+        self.min_samples_leaf = min_samples_leaf
 
         if Y.ndim == 1:
             Y = encode_one_hot(Y) # one-hot encoded y variable
@@ -104,8 +105,9 @@ class DecisionTree:
         for i in features:
             self._find_bettersplit(i, X, Y, node_id)
         if self.is_leaf(node_id):
-            # a split was not made, most likely because all X values are the same
-            features2 = set(range(self.n_features)).difference(features) #try all other features
+            # a split was not made, either because all X values are the same all because min_samples_leaf was not satisfied
+            # try all other features to force a split
+            features2 = set(range(self.n_features)).difference(features) 
             features2 = self.RandomState.permutation(list(features2))
             for i in features2:
                 self._find_bettersplit(i, X, Y, node_id)
@@ -137,6 +139,10 @@ class DecisionTree:
             lhs_count[yi] += 1;  rhs_count[yi] -= 1
             if xi == X_sort[i+1]:
                 continue
+            if sum(lhs_count) < self.min_samples_leaf:
+                continue
+            if sum(rhs_count) < self.min_samples_leaf:
+                break
             # Gini Impurity
             lhs_gini = gini_score(lhs_count)
             rhs_gini = gini_score(rhs_count)
@@ -159,20 +165,20 @@ class DecisionTree:
         if X.values.ndim == 1:
             probs = np.array([self._predict_row(X)])
         else:
-            probs = np.array([self._predict_row(xi) for xi in X.values])
+            probs = np.apply_along_axis(self._predict_row, 1, X.values)
             probs /= np.sum(probs, axis=1)[:, None]
         return probs
 
     def predict(self, X):
         "Return the most likely class in the final leaf"
         probs = self.predict_prob(X)
-        return np.argmax(probs, axis=1)
+        return np.nanargmax(probs, axis=1)
 
     def predict_count(self, X):
         "Return the sample count in the final leaf for each class"
         if X.values.ndim == 1:
             return np.array([self._predict_row(X.values)])
-        return np.array([self._predict_row(xi) for xi in X.values])
+        return np.apply_along_axis(self._predict_row, 1, X.values)
 
     def get_info(self, node_id: int):
         n_samples =  self.n_samples[node_id]
@@ -278,7 +284,7 @@ if __name__ == '__main__':
     y = data[target]
     X_train, X_test, y_train, y_test = split_data(X, y, test_size=0.2, seed=42)
 
-    tree = DecisionTree(X_train, y_train, random_state=0, max_depth=None)
+    tree = DecisionTree(X_train, y_train, random_state=0, max_depth=None, min_samples_leaf=1)
     # from sklearn.tree import DecisionTreeClassifier
     # tree = DecisionTreeClassifier()
     # tree.fit(X_train, y_train, random_state=42)

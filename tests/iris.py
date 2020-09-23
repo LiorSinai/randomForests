@@ -80,7 +80,7 @@ if __name__ == '__main__':
     n_samples, n_features = X.shape[0], X.shape[1]
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.20, random_state=42)
 
-    rfc = RandomForestClassifier(random_state=42, n_estimators=20)
+    rfc = RandomForestClassifier(random_state=42, n_estimators=20, min_samples_leaf=1)
     rfc.fit(X_train, y_train)
 
     acc_test = rfc.score(X_test, y_test)

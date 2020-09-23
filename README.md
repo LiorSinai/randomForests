@@ -14,15 +14,15 @@ The parameters are:
 - `random_state [None int or numpy.random.RandomState]`: a Numpy RandomState entity. Sklearn equivalent: random_state
 - `max_features [None or int or 'sqrt']`: maximum number of features to randomly select from per split. If 'sqrt', then sqrt(n_features) is used. Sklearn equivalent: max_features.
 - `max_depth [None or int]`: stop splitting after reaching this depth. Sklearn equivalent: max_depth.
+- `min_samples_leaf [int]`: the mininum number of samples allowed in a leaf. Sklearn equivalent: min_samples_leaf.
 - `bootstrap [bool]`: use a random subset of samples per tree. Sklearn equivalent: max_depth.
-- `sample_size [int]`(only used if bootstrap=True): number of samples to use per tree. Sklearn equivalent: N/A.
-- `replacement [bool]` (only used if bootstrap=True): draw samples with replacement (duplicates) or without replacement (no duplicates). Sklearn equivalent: N/A.
-- `oob_score [bool]` (only used if bootstrap=True): calculate the out-of-bag score. This is the mean accuracy of the predictions made for each sample using
+- `sample_size [int]`: number of samples to use per tree. Sklearn equivalent: N/A.
+- `oob_score [bool]` (only used if bootstrap=True or sample_size<1.0): calculate the out-of-bag score. This is the mean accuracy of the predictions made for each sample using
 only the trees that were _not_ trained on that sample. 
 
 Let the _k=sample_size_ and _n=total_samples_.
-Then on average with replacement, n(1-1/n)^k ~ exp(-n/k) samples will not be used in each tree. This is 36.8% of samples if _k=n_. 
-This means that the out-of-bag score is based on a significant portion of samples. It therefore forms a useful proxy validation set.
+Then on average with replacement, n(1-1/n)^k ~ exp(-n/k) samples will not be used in each tree. This is 36.8% of samples per tree if _k=n_. 
+This is a significant portion of samples. Therefore the out-of-bag samples form a useful proxy validation set.
 
 It has the following external methods:
 - `fit(X,Y)`: fit the data to the random forest classifier. Y can have multiple classes. Sklearn equivalent: fit().
@@ -52,6 +52,7 @@ The parameters are:
 - `random_state [None int or numpy.random.RandomState]`: a Numpy RandomState entity. Sklearn equivalent: random_state
 - `max_depth [None or int]`: stop splitting after reaching this depth. Sklearn equivalent: max_depth.
 - `max_features [None or int or 'sqrt']`: maximum number of features to randomly select from per split. If 'sqrt', then sqrt(n_features) is used. Sklearn equivalent: max_features.
+- `min_samples_leaf [int]`: the mininum number of samples allowed in a leaf. Sklearn equivalent: min_samples_leaf.
  
 It has the following external methods:
 - `get_n_splits() [int]`: returns the number of splits in the tree. Sklearn equivalent: get_n_leaves() (might return a slightly different result).
@@ -65,7 +66,6 @@ Sklearn equivalent: N/A.
 - `predict(X) [array]`: returns the class predictions for X based on the maximum class probability from predict_prob. Sklearn equivalent: predict().
 - `get_info(node_id) [array]`: returns values associated with this node in the tree. Sklearn equivalent: N/A.
 - `leaf_to_string(node_id) [str]`: returns a formatted string of the get_info(node_id) data. Sklearn equivalent: N/A.
- 
  
 It has the following attributes:
 - `tree_ [BinaryTree]`: A binary tree encoded as a set of parallel lists for children_left and children_right. Sklearn equivalent: tree_. 

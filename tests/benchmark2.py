@@ -126,13 +126,11 @@ if __name__ == '__main__':
 
     # TreeEnsemble only parameters
     sample_size = None
-    replacement = True
 
     forest = RFC(n_trees=n_trees, 
                  bootstrap=bootstrap,
                  max_features=max_features,
                  sample_size=sample_size,
-                 replacement=replacement,
                  random_state=42)
     skForest = RFC_sk(n_estimators=n_trees, 
                       random_state=42, 

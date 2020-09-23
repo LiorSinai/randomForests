@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 
 from DecisionTree import DecisionTree
-from utilities import split_data, split_data, check_RandomState, encode_one_hot
+from utilities import split_data, split_data, check_RandomState, check_sample_size, encode_one_hot
 
 class RandomForestClassifier:
     def __init__(self, 
@@ -18,9 +18,9 @@ class RandomForestClassifier:
                 random_state=None, 
                 max_depth=None, 
                 max_features=None, 
+                min_samples_leaf=1,
                 sample_size=None, 
                 bootstrap=True, 
-                replacement=True,
                 oob_score=False):
         self.RandomState = check_RandomState(random_state)
         self.sample_size = sample_size
@@ -28,36 +28,36 @@ class RandomForestClassifier:
         self.n_trees = n_trees
         self.bootstrap = bootstrap
         self.max_features = max_features
-        self.replacement= replacement
         self.oob_score = oob_score
+        self.min_samples_leaf=min_samples_leaf
 
         self.n_features = None
         self.n_classes = None
         self.feature_importances_ = None
         
     def fit(self, X, Y):
-        if self.bootstrap and (not self.replacement) and (self.sample_size is None): 
-                print("Warning: TreeEnsemble.fit() sample size without replacement should be less than n_samples else"\
-                      " every tree uses all samples")
-
         if Y.ndim == 1:
             Y = encode_one_hot(Y) # one-hot encoded y variable
         elif Y.shape[1] == 1:
             Y = encode_one_hot(Y) # one-hot encoded y variable
 
+        n_samples = X.shape[0]
+        self.sample_size_ = check_sample_size(self.sample_size, n_samples)
+
+        oob_possible = (self.bootstrap or (self.sample_size_<n_samples))
+
         self.trees = []
         if self.oob_score:
-            if not self.bootstrap:
+            if not oob_possible:
                 print("Warning: out-of-bag score will not be calculated because bootstrap=False")
             else:
                 oob_prob = np.zeros(Y.shape)
-                n_samples = Y.shape[0]
                 oob_count = np.zeros((n_samples))
                 all_samples = set(range(n_samples))
         for i in range(self.n_trees):
             new_tree, rows = self._create_tree(X, Y) 
             self.trees.append(new_tree)
-            if self.oob_score and self.bootstrap:
+            if self.oob_score and oob_possible:
                 row_oob = all_samples.difference(rows) # approximately length=n*(1-np.exp(-sample_size/n_samples))
                 row_oob = np.array(list(row_oob))
                 oob_prob[row_oob, :] += new_tree.predict_prob(X.iloc[row_oob])
@@ -67,7 +67,7 @@ class RandomForestClassifier:
         self.n_features = X.shape[1]
         self.n_classes = Y.shape[1]
         self.feature_importances_ = self.gini_feature_importance()
-        if self.oob_score and self.bootstrap:
+        if self.oob_score and oob_possible:
             y_test = np.argmax(Y, axis=1)
             # remove nan-values
             valid = oob_count > 0 
@@ -82,12 +82,12 @@ class RandomForestClassifier:
         assert len(X) == len(Y), ""
         n_samples = X.shape[0]
 
+        # get sub-sample 
         if self.bootstrap:
-            sample_size = n_samples if self.sample_size is None else min(self.sample_size, n_samples)
-            if self.replacement: # with replacement
-                rand_idxs = self.RandomState.randint(0, n_samples, sample_size)
-            else: # without replacement
-                rand_idxs = self.RandomState.permutation(np.arange(n_samples))[:sample_size] 
+            rand_idxs = self.RandomState.randint(0, n_samples, self.sample_size_) # with replacement
+            X_, Y_ = X.iloc[rand_idxs, :], Y[rand_idxs]
+        elif self.sample_size_ < n_samples:
+            rand_idxs = self.RandomState.permutation(np.arange(n_samples))[:self.sample_size_]  # without replacement
             X_, Y_ = X.iloc[rand_idxs, :], Y[rand_idxs]
         else:
             X_, Y_ = X.copy(), Y.copy() # do nothing to the data
@@ -96,14 +96,15 @@ class RandomForestClassifier:
         return DecisionTree(X_, Y_,
                             max_depth=self.max_depth, 
                             max_features=self.max_features,
-                            random_state=self.RandomState
+                            random_state=self.RandomState,
+                            min_samples_leaf=self.min_samples_leaf
                             ), rand_idxs
                 
-
     def predict(self, X):
         probs = np.sum([t.predict_prob(X) for t in self.trees], axis=0)
         #probs = np.sum([t.predict_count(X) for t in self.trees], axis=0)
-        return np.argmax(probs, axis=1)
+        probs
+        return np.nanargmax(probs, axis=1)
 
     def score(self, X, y):
         y_pred = self.predict(X)
@@ -166,12 +167,12 @@ if __name__ == "__main__":
     X_train, X_test, y_train, y_test = split_data(X, y, test_size=0.2, seed=42)
 
     forest = RandomForestClassifier(n_trees=20, 
-                                    bootstrap=False,
-                                    replacement=True,
-                                    #sample_size=round(0.2*X_train.shape[0]), # default is None
-                                    #max_features='sqrt', # default is None
+                                    bootstrap=True,
+                                    sample_size=1.0, # default is None
+                                    max_features='sqrt', # default is None
                                     #max_depth = 5, # default is None
                                     oob_score=True,
+                                    min_samples_leaf=5,
                                     random_state=42)
 
     forest.fit(X_train, y_train)
@@ -198,7 +199,7 @@ if __name__ == "__main__":
         for col, val in zip(X_train.columns[order], fi[order]):
             print('%s: %.4f' % (col, val)) 
 
-    # import matplotlib.pyplot as plt # comment out to avoid dependency 
+    #import matplotlib.pyplot as plt # comment out to avoid dependency 
     # order = np.argsort(fi_perm['means'])
 
     # fig, ax = plt.subplots()

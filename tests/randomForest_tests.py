@@ -90,7 +90,7 @@ class TestRandomForest(unittest.TestCase):
         self.assertEqual(sum(n_leaves), 1716)
 
         if hasattr(forest, 'oob_score_'):
-            self.assertAlmostEqual(0.9847538115471132, forest.oob_score_)
+            self.assertEqual(0.9847538115471132, forest.oob_score_)
 
         # should be mostly correct on the training data
         y0 = forest.predict(X_train)
