@@ -17,6 +17,12 @@ The parameters are:
 - `bootstrap [bool]`: use a random subset of samples per tree. Sklearn equivalent: max_depth.
 - `sample_size [int]`(only used if bootstrap=True): number of samples to use per tree. Sklearn equivalent: N/A.
 - `replacement [bool]` (only used if bootstrap=True): draw samples with replacement (duplicates) or without replacement (no duplicates). Sklearn equivalent: N/A.
+- `oob_score [bool]` (only used if bootstrap=True): calculate the out-of-bag score. This is the mean accuracy of the predictions made for each sample using
+only the trees that were _not_ trained on that sample. 
+
+Let the _k=sample_size_ and _n=total_samples_.
+Then on average with replacement, $(1-frac{1}{n})^n$ e^(-k/n)$ samples will not be used in each tree. This is 36.8% of samples if $k=n$. 
+This means that the out-of-bag score is based on a significant portion of samples. It therefore forms a useful proxy validation set.
 
 It has the following external methods:
 - `fit(X,Y)`: fit the data to the random forest classifier. Y can have multiple classes. Sklearn equivalent: fit().
@@ -30,14 +36,14 @@ It has the following attributes:
 - `feature_importances_ [array]`: the feature importance calculated per feature as the sum of the change in impurity per node where that feature splits the node, 
 weighted by the fraction of samples used in that node. 
 Unlike the permutation importance, this is independent of the input data. Sklearn equivalent: feature_importances_.
-- `oob_score_`: TODO 
+- `oob_score_ [float]`: the mean out-of-bag score.
 
 ## DecisionTree
 A binary decision tree. It is based off Scikit-learn's [DecisionTreeClassifier](https://scikit-learn.org/stable/modules/generated/sklearn.tree.DecisionTreeClassifier.html).
  The tree is encoded as a set of parallel lists for children_left and children_right.
 
 The class is created with:
-`tree =DecisionTree(X, Y, random_state=None, max_depth=None, max_features=None)`.
+`tree = DecisionTree(X, Y, random_state=None, max_depth=None, max_features=None)`.
 
 Unlike Scikit-learn, a fit function is not used.
 

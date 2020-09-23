@@ -81,13 +81,16 @@ class TestRandomForest(unittest.TestCase):
     def full_forest(self):
         X_train, X_test, y_train, y_test = self.data
 
-        forest = RandomForestClassifier(n_trees=20, bootstrap=True, max_features='sqrt', random_state=42)
+        forest = RandomForestClassifier(n_trees=20, bootstrap=True, max_features='sqrt', random_state=42, oob_score=True)
         forest.fit(X_train, y_train)
 
         depths =[t.get_max_depth() for t in forest.trees]
         n_leaves = [t.get_n_splits() for t in forest.trees]
         self.assertEqual(sum(depths), 265)
         self.assertEqual(sum(n_leaves), 1716)
+
+        if hasattr(forest, 'oob_score_'):
+            self.assertAlmostEqual(0.9847538115471132, forest.oob_score_)
 
         # should be mostly correct on the training data
         y0 = forest.predict(X_train)

@@ -40,7 +40,7 @@ if __name__ == '__main__':
 
     #### -------------- random forest classifier  -------------- ###
 
-    rfc = RandomForestClassifier(random_state=42)
+    rfc = RandomForestClassifier(random_state=42, oob_score=True)
     rfc.fit(X_train, y_train)
 
     # display descriptors
@@ -50,6 +50,8 @@ if __name__ == '__main__':
     acc_train = rfc.score(X_train, y_train)
     print("depth range, average:    %d-%d, %.2f" % (np.min(depths), np.max(depths), np.mean(depths)))
     print("n_leaves range, average: %d-%d, %.2f" % (np.min(n_leaves), np.max(n_leaves), np.mean(n_leaves)))
+    if hasattr(rfc, 'oob_score_'):
+        print("oob accuracy:   %.2f%%" % (rfc.oob_score_*100))
     print("train accuracy: %.2f%%" % (acc_train*100))
     print("test accuracy:  %.2f%%" % (acc_test*100))
 

@@ -16,11 +16,12 @@ class RandomForestClassifier:
     def __init__(self, 
                 n_trees=100, 
                 random_state=None, 
-                sample_size=None, 
                 max_depth=None, 
                 max_features=None, 
+                sample_size=None, 
                 bootstrap=True, 
-                replacement=True):
+                replacement=True,
+                oob_score=False):
         self.RandomState = check_RandomState(random_state)
         self.sample_size = sample_size
         self.max_depth = max_depth
@@ -28,6 +29,7 @@ class RandomForestClassifier:
         self.bootstrap = bootstrap
         self.max_features = max_features
         self.replacement= replacement
+        self.oob_score = oob_score
 
         self.n_features = None
         self.n_classes = None
@@ -42,13 +44,39 @@ class RandomForestClassifier:
             Y = encode_one_hot(Y) # one-hot encoded y variable
         elif Y.shape[1] == 1:
             Y = encode_one_hot(Y) # one-hot encoded y variable
-                
-        self.trees = [self._create_tree(X, Y) for i in range(self.n_trees)]
-        
+
+        self.trees = []
+        if self.oob_score:
+            if not self.bootstrap:
+                print("Warning: out-of-bag score will not be calculated because bootstrap=False")
+            else:
+                oob_prob = np.zeros(Y.shape)
+                n_samples = Y.shape[0]
+                oob_count = np.zeros((n_samples))
+                all_samples = set(range(n_samples))
+        for i in range(self.n_trees):
+            new_tree, rows = self._create_tree(X, Y) 
+            self.trees.append(new_tree)
+            if self.oob_score and self.bootstrap:
+                row_oob = all_samples.difference(rows) # approximately length=n*(1-np.exp(-sample_size/n_samples))
+                row_oob = np.array(list(row_oob))
+                oob_prob[row_oob, :] += new_tree.predict_prob(X.iloc[row_oob])
+                oob_count[row_oob] += 1
+
         # set attributes
         self.n_features = X.shape[1]
         self.n_classes = Y.shape[1]
         self.feature_importances_ = self.gini_feature_importance()
+        if self.oob_score and self.bootstrap:
+            y_test = np.argmax(Y, axis=1)
+            # remove nan-values
+            valid = oob_count > 0 
+            oob_prob = oob_prob[valid, :]
+            oob_count = oob_count[valid][:, np.newaxis]
+            y_test    = y_test[valid]
+            # predict out-of-bag score
+            y_pred = np.argmax(oob_prob/oob_count, axis=1)
+            self.oob_score_ = np.mean(y_pred==y_test)
 
     def _create_tree(self, X, Y):
         assert len(X) == len(Y), ""
@@ -63,12 +91,14 @@ class RandomForestClassifier:
             X_, Y_ = X.iloc[rand_idxs, :], Y[rand_idxs]
         else:
             X_, Y_ = X.copy(), Y.copy() # do nothing to the data
+            rand_idxs = None # this data isn't used
 
         return DecisionTree(X_, Y_,
                             max_depth=self.max_depth, 
                             max_features=self.max_features,
                             random_state=self.RandomState
-                            )
+                            ), rand_idxs
+                
 
     def predict(self, X):
         probs = np.sum([t.predict_prob(X) for t in self.trees], axis=0)
@@ -136,11 +166,12 @@ if __name__ == "__main__":
     X_train, X_test, y_train, y_test = split_data(X, y, test_size=0.2, seed=42)
 
     forest = RandomForestClassifier(n_trees=20, 
-                                    bootstrap=True,
+                                    bootstrap=False,
                                     replacement=True,
-                                    #sample_size=round(0.8*X_train.shape[0]), # default is None
-                                    max_features='sqrt', # default is None
-                                    #max_depth = 12, # default is None
+                                    #sample_size=round(0.2*X_train.shape[0]), # default is None
+                                    #max_features='sqrt', # default is None
+                                    #max_depth = 5, # default is None
+                                    oob_score=True,
                                     random_state=42)
 
     forest.fit(X_train, y_train)
@@ -152,6 +183,8 @@ if __name__ == "__main__":
     acc_train = forest.score(X_train, y_train)
     print("depth range, average:    %d-%d, %.2f" % (np.min(depths), np.max(depths), np.mean(depths)))
     print("n_leaves range, average: %d-%d, %.2f" % (np.min(n_leaves), np.max(n_leaves), np.mean(n_leaves)))
+    if hasattr(forest, 'oob_score_'):
+        print("oob accuracy:   %.2f%%" % (forest.oob_score_*100))
     print("train accuracy: %.2f%%" % (acc_train*100))
     print("test accuracy:  %.2f%%" % (acc_test*100))
 
