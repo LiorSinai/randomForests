@@ -73,13 +73,13 @@ class DecisionTree:
     def get_max_depth(self):
         return self.tree_.get_max_depth(0)
 
-    def is_leaf(self, node_id):
+    def is_leaf(self, node_id: int):
         return self.scores[node_id] == float('inf')
     
-    def split_name(self, node_id):
+    def split_name(self, node_id: int):
         return self.features[self.split_features[node_id]]
 
-    def _set_defaults(self, node_id, Y):
+    def _set_defaults(self, node_id: int, Y):
         self.scores.append(float('inf'))
         val = Y.sum(axis=0)
         self.values.append(val)
@@ -90,7 +90,7 @@ class DecisionTree:
         self.tree_.children_left.append(-1)
         self.tree_.children_right.append(-1)
     
-    def _find_varsplit(self, X, Y, depth):
+    def _find_varsplit(self, X, Y, depth: int):
         node_id = self.size
         self.size += 1
         self._set_defaults(node_id, Y)
@@ -122,7 +122,7 @@ class DecisionTree:
             self.tree_.children_right[node_id] = self.size
             self._find_varsplit(X.iloc[rhs], Y[rhs[0], :], depth+1)
     
-    def _find_bettersplit(self, var_idx, X, Y, node_id):
+    def _find_bettersplit(self, var_idx: int, X, Y, node_id: int):
         X = X.values[:, var_idx] 
         n_samples = self.n_samples[node_id]
 
@@ -174,7 +174,7 @@ class DecisionTree:
             return np.array([self._predict_row(X.values)])
         return np.array([self._predict_row(xi) for xi in X.values])
 
-    def get_info(self, node_id):
+    def get_info(self, node_id: int):
         n_samples =  self.n_samples[node_id]
         val =        self.values[node_id]
         impurity =   self.impurities[node_id]
@@ -185,7 +185,7 @@ class DecisionTree:
         else:
             return n_samples, val, var_idx, split_val, impurity
 
-    def leaf_to_string(self, node_id):
+    def leaf_to_string(self, node_id: int) -> str:
         if self.is_leaf(node_id):
             n_samples, val = self.get_info(node_id)
             s = 'n_samples: {:d}; val: {}'.format(n_samples, val)
@@ -220,7 +220,7 @@ class BinaryTree():
             stack.extend([(node_id, left), (node_id, right)])
         return depths
 
-    def is_leaf(self, node_id):
+    def is_leaf(self, node_id: int):
         left = self.children_left[node_id]
         right = self.children_right[node_id]
         return right == left #(left == -1) and (right == -1)

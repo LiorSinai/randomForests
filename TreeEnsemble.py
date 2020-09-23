@@ -43,14 +43,14 @@ class RandomForestClassifier:
         elif Y.shape[1] == 1:
             Y = encode_one_hot(Y) # one-hot encoded y variable
                 
-        self.trees = [self.create_tree(X, Y) for i in range(self.n_trees)]
+        self.trees = [self._create_tree(X, Y) for i in range(self.n_trees)]
         
         # set attributes
         self.n_features = X.shape[1]
         self.n_classes = Y.shape[1]
         self.feature_importances_ = self.gini_feature_importance()
 
-    def create_tree(self, X, Y, categories=None):
+    def _create_tree(self, X, Y):
         assert len(X) == len(Y), ""
         n_samples = X.shape[0]
 
@@ -174,7 +174,7 @@ if __name__ == "__main__":
     # fi = fi_perm['means'][order]/fi_perm['means'].sum()
     # ax.barh(inds+width/2, fi, width, xerr=fi_perm['stds'][order], label='permutation')
     # fi = forest.feature_importances_[order]
-    # ax.barh(inds-width/2, fi, width, label='weight impurity')
+    # ax.barh(inds-width/2, fi, width, label='weighted impurity')
     # #ax.grid(True)
     # ax.legend(loc='upper right', bbox_to_anchor=(1, 0.85))
     # ax.set_yticks(inds)
