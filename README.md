@@ -21,7 +21,7 @@ The parameters are:
 only the trees that were _not_ trained on that sample. 
 
 Let the _k=sample_size_ and _n=total_samples_.
-Then on average with replacement, $(1-frac{1}{n})^n$ e^(-k/n)$ samples will not be used in each tree. This is 36.8% of samples if $k=n$. 
+Then on average with replacement, n(1-1/n)^k ~ exp(-n/k) samples will not be used in each tree. This is 36.8% of samples if _k=n_. 
 This means that the out-of-bag score is based on a significant portion of samples. It therefore forms a useful proxy validation set.
 
 It has the following external methods:
