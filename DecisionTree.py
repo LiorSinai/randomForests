@@ -1,17 +1,20 @@
 """
-14 September 2020
+22 September 2020
 
 Random Forests from scratch
 
-Decision tree v2
-- Tree is represent as a nested object
-- works for multi-class problems now
+Decision tree v3
+- Tree is represent with 2 parallel arrays. This is more compact and requires much recusion than a linked list.
+    - left_child_id = tree_.children_left[parent_id]
+    - right_child_id = tree_.children_left[parent_id]
+    - if id = -1, this node does not exist
+- Works for multi-class problems 
 
 """
 
 import numpy as np
 import pandas as pd
-from utilities import load_data, check_RandomState, encode_one_hot
+from utilities import split_data, check_RandomState, encode_one_hot
 
 def gini_score(counts): 
     score = 1
@@ -197,7 +200,12 @@ if __name__ == '__main__':
     # 3-class test with 1000 samples
     # file_name = 'tests/Iris_cleaned.csv'  
     # target = "Species"
-    X_train, X_test, y_train, y_test = load_data(file_name, target, test_size=0.2, seed=42)
+
+    # Load Data
+    data = pd.read_csv(file_name)
+    X = data.drop(columns=[target])
+    y = data[target]
+    X_train, X_test, y_train, y_test = split_data(X, y, test_size=0.2, seed=42)
 
     tree = DecisionTree(X_train, y_train)
     # from sklearn.tree import DecisionTreeClassifier

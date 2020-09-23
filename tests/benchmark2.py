@@ -18,36 +18,6 @@ sys.path.append(".") # hack to add level above to the system path
 
 from TreeEnsemble import RandomForestClassifier as RFC
 
-def load_data(file_name:str, target_name: str, test_size=0.1, seed=1):
-    # Load Data
-    data = pd.read_csv(file_name)
-    X = data.drop(columns=[target_name])
-    y = data[target_name]
-
-    # shuffle data
-    np.random.seed(seed)
-    perm = np.random.permutation(data.index)
-    X = X.loc[perm]
-    y = y.loc[perm]
-    
-    # split into training and test sets
-    n_samples = X.shape[0]
-    if isinstance(test_size, float):
-        if test_size <= 0 or test_size >= 1:
-            raise ValueError("The test size should fall in the range (0,1)")
-        n_train = round(1 - test_size*n_samples)
-    elif isinstance(test_size, int):
-        n_train = n_samples - test_size
-    else:
-        raise ValueError("Improper type \'%s\' for test_size" % type(test_size))
-
-    X_train = X[:n_train]
-    y_train = y[:n_train]
-    X_test = X[n_train:]
-    y_test = y[n_train:]
-
-    return X_train, X_test, y_train, y_test
-
 def preorder_sk(tree, node_id=0):
     "Pre-order tree traversal"
     if node_id != -1:
@@ -173,7 +143,10 @@ if __name__ == '__main__':
     # load data
     file_name = "tests/UniversalBank_cleaned.csv"
     target = "Personal Loan"
-    X_train, X_test, y_train, y_test = load_data(file_name, target, test_size=0.2, seed=42)
+    data = pd.read_csv(file_name)
+    X = data.drop(columns=[target])
+    y = data[target]
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.20, random_state=42)
 
     forest.fit(X_train, y_train)
     skForest.fit(X_train, y_train)
@@ -181,29 +154,29 @@ if __name__ == '__main__':
     # Number of splits in the forest
     n_sk_leaves = [e.get_n_leaves() for e in skForest.estimators_]
     n_leaves = [t.get_n_splits() for t in forest.trees]
-    print("n_leaves range, average: %d-%d, %.2f" % (np.min(n_sk_leaves), np.max(n_sk_leaves), np.mean(n_sk_leaves)))
-    print("n_leaves range, average: %d-%d, %.2f" % (np.min(n_leaves), np.max(n_leaves), np.mean(n_leaves)))
+    print("TE n_leaves range, average: %d-%d, %.2f" % (np.min(n_sk_leaves), np.max(n_sk_leaves), np.mean(n_sk_leaves)))
+    print("SK n_leaves range, average: %d-%d, %.2f" % (np.min(n_leaves), np.max(n_leaves), np.mean(n_leaves)))
 
     # Maximum depth of trees
     depths_sk = [e.get_depth() for e in skForest.estimators_]
     depths = [t.get_max_depth() for t in forest.trees]
-    print("depth range, average: %d-%d, %.2f" % (np.min(depths), np.max(depths), np.mean(depths)))
-    print("depth range, average: %d-%d, %.2f" % (np.min(depths_sk), np.max(depths_sk), np.mean(depths_sk)))
+    print("TE depth range, average: %d-%d, %.2f" % (np.min(depths), np.max(depths), np.mean(depths)))
+    print("SK depth range, average: %d-%d, %.2f" % (np.min(depths_sk), np.max(depths_sk), np.mean(depths_sk)))
 
     # Accuracy
     ySk = skForest.predict(X_test)
     y0 = forest.predict(X_test)
-    print("Correct sklearn predictions:      %.3f" % (np.mean(ySk==y_test)))
-    print("Correct TreeEnsemble predictions: %.3f" % (np.mean(y0==y_test)))
-
-    fi_sk = []
-    for tree in skForest.estimators_:
-        _, _, fi= traverse_tree_sk(tree) 
-        fi_sk.append(fi)
-    fi_sk = np.mean(fi_sk, axis=0)
+    print("SK Correct predictions: %.3f" % (np.mean(ySk==y_test)))
+    print("TE Correct predictions: %.3f" % (np.mean(y0==y_test)))
 
     # feature importance
     if 1==0:
+        fi_sk = []
+        for tree in skForest.estimators_:
+            _, _, fi= traverse_tree_sk(tree) 
+            fi_sk.append(fi)
+        fi_sk = np.mean(fi_sk, axis=0)
+        
         fi1 = forest.perm_feature_importance(X_train, y_train) # slow
         fi_sk = permutation_importance(skForest, X_train, y_train).importances_mean
 
@@ -232,7 +205,7 @@ if __name__ == '__main__':
             d = leaf.depth
             print('%03d'%i,'-'*d, leaf)
 
-    if 1==0:
+    if 1==1:
         # compare all leaves
         skLeaves = []
         skDepths = []
@@ -250,6 +223,8 @@ if __name__ == '__main__':
             info_sk_leaf, info_my_leaf = info
             print(i, end = ' ')
             for (var1, var2) in zip(info_sk_leaf, info_my_leaf):
+                if isinstance(var2, list) or isinstance(var2, np.ndarray):
+                    var2 = var2[1]/sum(var2)
                 print(almostEqual(var1, var2), end=', ')
             print('')
 

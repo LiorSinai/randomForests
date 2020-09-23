@@ -10,15 +10,11 @@ Scratchpad
 import numpy as np
 import pandas as pd
 
-def load_data(file_name:str, target_name: str, test_size=0.1, seed=1):
-    # Load Data
-    data = pd.read_csv(file_name)
-    X = data.drop(columns=[target_name])
-    y = data[target_name]
 
+def split_data(X, y, test_size=0.1, seed=1):
     # shuffle data
     np.random.seed(seed)
-    perm = np.random.permutation(data.index)
+    perm = np.random.permutation(X.index)
     X = X.loc[perm]
     y = y.loc[perm]
     

@@ -12,7 +12,7 @@ from DecisionTree import DecisionTree
 from sklearn.inspection import permutation_importance
 
 import matplotlib.pyplot as plt
-from utilities import load_data, load_data, check_RandomState, encode_one_hot
+from utilities import split_data, split_data, check_RandomState, encode_one_hot
 
 class RandomForestClassifier:
     def __init__(self, 
@@ -128,7 +128,10 @@ if __name__ == "__main__":
     # file_name = 'tests/Iris_cleaned.csv'  
     # target = "Species"
 
-    X_train, X_test, y_train, y_test = load_data(file_name, target, test_size=0.2, seed=42)
+    data = pd.read_csv(file_name)
+    X = data.drop(columns=[target])
+    y = data[target]
+    X_train, X_test, y_train, y_test = split_data(X, y, test_size=0.2, seed=42)
 
     forest = RandomForestClassifier(n_trees=10, 
                                     bootstrap=True,
