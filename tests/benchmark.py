@@ -14,6 +14,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+import time
+
 if __name__ == '__main__':
     #### -------------- load data  -------------- ###
     file_name = "tests/UniversalBank_cleaned.csv"
@@ -29,19 +31,19 @@ if __name__ == '__main__':
     #### -------------- simplest strategy -------------- ###
     print("Based on Income>100 only:")
 
-    def basic_model(X):
+    def baseline_model(X):
         pred = np.full(X.shape[0], 1, dtype=bool)
         pred = np.logical_and(pred, (X['Income'] >= 100))
         #pred = np.logical_and(pred, (X['Securities Account'] == 0))
         pred = np.logical_and(pred, (X['CCAvg'] > 3))
         return pred
-    y_full = basic_model(X)
+    y_full = baseline_model(X)
     acc_full = np.mean(y_full == y)
     print("full accuracy:  %.2f%%" % (acc_full*100))
-    y_pred = basic_model(X_train)
+    y_pred = baseline_model(X_train)
     acc_train = np.mean(y_pred == y_train)
     print("train accuracy: %.2f%%" % (acc_train*100))
-    y_pred = basic_model(X_test)
+    y_pred = baseline_model(X_test)
     acc_test = np.mean(y_pred == y_test)
     print("test accuracy:  %.2f%%" % (acc_test*100))
     C = confusion_matrix(y, y_full)
@@ -51,7 +53,11 @@ if __name__ == '__main__':
     #### -------------- random forest classifier  -------------- ###
 
     rfc = RandomForestClassifier(random_state=42, oob_score=True, min_samples_leaf=3)
+
+    start_time = time.time()
     rfc.fit(X_train, y_train)
+    end_time = time.time()
+    print("fitting time: {:4f}s".format(end_time-start_time))
 
     # display descriptors
     depths =[e.get_depth() for e in rfc.estimators_]

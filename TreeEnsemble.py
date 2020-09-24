@@ -48,38 +48,43 @@ class RandomForestClassifier:
         n_samples = X.shape[0]
         self.sample_size_ = check_sample_size(self.sample_size, n_samples)
 
-        oob_possible = (self.bootstrap or (self.sample_size_<n_samples))
-
         self.trees = []
-        if self.oob_score:
-            if not oob_possible:
-                warnings.warn("out-of-bag score will not be calculated because bootstrap=False")
-            else:
-                oob_prob = np.zeros(Y.shape)
-                oob_count = np.zeros((n_samples))
-                all_samples = np.arange(n_samples)
+        rng_states = [] # save the random states to regenerate the random indices for the oob_score
         for i in range(self.n_trees):
-            new_tree, rows = self._create_tree(X, Y) 
-            self.trees.append(new_tree)
-            if self.oob_score and oob_possible:
-                row_oob = np.setxor1d(all_samples, rows)
-                oob_prob[row_oob, :] += new_tree.predict_prob(X.iloc[row_oob])
-                oob_count[row_oob] += 1
+            rng_states.append(self.RandomState.get_state())
+            self.trees.append(self._create_tree(X, Y))
 
         # set attributes
         self.n_features = X.shape[1]
         self.n_classes = Y.shape[1]
         self.feature_importances_ = self.gini_feature_importance()
-        if self.oob_score and oob_possible:
-            # remove nan-values
-            valid = oob_count > 0 
-            oob_prob = oob_prob[valid, :]
-            oob_count = oob_count[valid][:, np.newaxis] # transform to column vector for broadcasting during the division
-            y_test    =  np.argmax(Y[valid], axis=1)
-            # predict out-of-bag score
-            y_pred = np.argmax(oob_prob/oob_count, axis=1)
-            self.oob_score_ = np.mean(y_pred==y_test)
 
+        if self.oob_score:
+            if not (self.bootstrap or (self.sample_size_<n_samples)):
+                warnings.warn("out-of-bag score will not be calculated because bootstrap=False")
+            else:
+                oob_prob = np.zeros(Y.shape)
+                oob_count = np.zeros(n_samples)
+                all_samples = np.arange(n_samples)
+                rng = np.random.RandomState()
+                for i, state in enumerate(rng_states):
+                    rng.set_state(state)
+                    if self.bootstrap:
+                        rand_idxs = rng.randint(0, n_samples, self.sample_size_)
+                    else: #self.sample_size_ < n_samples
+                        rand_idxs = rng.permutation(all_samples)[:self.sample_size_]
+                    row_oob = np.setxor1d(all_samples, rand_idxs)
+                    oob_prob[row_oob, :] += self.trees[i].predict_prob(X.iloc[row_oob])
+                    oob_count[row_oob] += 1
+                # remove nan-values
+                valid = oob_count > 0 
+                oob_prob = oob_prob[valid, :]
+                oob_count = oob_count[valid][:, np.newaxis] # transform to column vector for broadcasting during the division
+                y_test    =  np.argmax(Y[valid], axis=1)
+                # predict out-of-bag score
+                y_pred = np.argmax(oob_prob/oob_count, axis=1)
+                self.oob_score_ =  np.mean(y_pred==y_test)
+                
     def _create_tree(self, X, Y):
         assert len(X) == len(Y), ""
         n_samples = X.shape[0]
@@ -93,14 +98,13 @@ class RandomForestClassifier:
             X_, Y_ = X.iloc[rand_idxs, :], Y[rand_idxs]
         else:
             X_, Y_ = X.copy(), Y.copy() # do nothing to the data
-            rand_idxs = None # this data isn't used
 
         return DecisionTree(X_, Y_,
                             max_depth=self.max_depth, 
                             max_features=self.max_features,
                             random_state=self.RandomState,
                             min_samples_leaf=self.min_samples_leaf
-                            ), rand_idxs
+                            )
                 
     def predict(self, X):
         "Predict the class for each sample in X"
