@@ -63,27 +63,31 @@ class RandomForestClassifier:
             if not (self.bootstrap or (self.sample_size_<n_samples)):
                 warnings.warn("out-of-bag score will not be calculated because bootstrap=False")
             else:
-                oob_prob = np.zeros(Y.shape)
-                oob_count = np.zeros(n_samples)
-                all_samples = np.arange(n_samples)
-                rng = np.random.RandomState()
-                for i, state in enumerate(rng_states):
-                    rng.set_state(state)
-                    if self.bootstrap:
-                        rand_idxs = rng.randint(0, n_samples, self.sample_size_)
-                    else: #self.sample_size_ < n_samples
-                        rand_idxs = rng.permutation(all_samples)[:self.sample_size_]
-                    row_oob = np.setxor1d(all_samples, rand_idxs)
-                    oob_prob[row_oob, :] += self.trees[i].predict_prob(X.iloc[row_oob])
-                    oob_count[row_oob] += 1
-                # remove nan-values
-                valid = oob_count > 0 
-                oob_prob = oob_prob[valid, :]
-                oob_count = oob_count[valid][:, np.newaxis] # transform to column vector for broadcasting during the division
-                y_test    =  np.argmax(Y[valid], axis=1)
-                # predict out-of-bag score
-                y_pred = np.argmax(oob_prob/oob_count, axis=1)
-                self.oob_score_ =  np.mean(y_pred==y_test)
+                self.oob_score_ = self.calculate_oob_score(X, Y, rng_states)
+        
+    def calculate_oob_score(self, X, Y, rng_states):
+        n_samples = X.shape[0]
+        oob_prob = np.zeros(Y.shape)
+        oob_count = np.zeros(n_samples)
+        all_samples = np.arange(n_samples)
+        rng = np.random.RandomState()
+        for i, state in enumerate(rng_states):
+            rng.set_state(state)
+            if self.bootstrap:
+                rand_idxs = rng.randint(0, n_samples, self.sample_size_)
+            else: #self.sample_size_ < n_samples
+                rand_idxs = rng.permutation(all_samples)[:self.sample_size_]
+            row_oob = np.setxor1d(all_samples, rand_idxs)
+            oob_prob[row_oob, :] += self.trees[i].predict_prob(X.iloc[row_oob])
+            oob_count[row_oob] += 1
+        # remove nan-values
+        valid = oob_count > 0 
+        oob_prob = oob_prob[valid, :]
+        oob_count = oob_count[valid][:, np.newaxis] # transform to column vector for broadcasting during the division
+        y_test    =  np.argmax(Y[valid], axis=1)
+        # predict out-of-bag score
+        y_pred = np.argmax(oob_prob/oob_count, axis=1)
+        return np.mean(y_pred==y_test)
                 
     def _create_tree(self, X, Y):
         assert len(X) == len(Y), ""
