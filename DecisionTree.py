@@ -15,8 +15,11 @@ Decision tree v3
 import numpy as np
 import pandas as pd
 from utilities import split_data, check_RandomState, encode_one_hot
+from typing import List, Tuple, Dict
 
-def gini_score(counts): 
+import time
+
+def gini_score(counts: List[int]) -> float: 
     score = 1
     n = sum(counts)
     for c in counts:
@@ -27,11 +30,11 @@ def gini_score(counts):
 class DecisionTree:
     def __init__(self, X, Y, max_depth=None, max_features=None, min_samples_leaf=1, random_state=None):
         self.n_samples, self.n_features = X.shape[0], X.shape[1]
-        self.RandomState = check_RandomState(random_state)
-        self.max_features = max_features
         self.max_depth = max_depth
+        self.max_features = max_features
         self.min_samples_leaf = min_samples_leaf
-
+        self.RandomState = check_RandomState(random_state)
+       
         if Y.ndim == 1:
             Y = encode_one_hot(Y) # one-hot encoded y variable
         elif Y.shape[1] == 1:
@@ -40,7 +43,6 @@ class DecisionTree:
         # initialise arrays
         self.tree_ = BinaryTree() # tree_.children_left and tree_.children_right
         self.n_samples = []
-        self.scores = []
         self.values = []
         self.impurities = []
         self.split_features = []
@@ -68,20 +70,25 @@ class DecisionTree:
         # set attributes
         self.depths = self.tree_.find_depths()
 
-    def get_n_splits(self):
-        return self.tree_.get_n_splits(0)
+    def get_n_splits(self) -> int:
+        "The number of nodes (number of parameters/2) not counting the leaves in the tree"
+        return self.tree_.n_splits
+    
+    def get_n_leaves(self) -> int:
+        "The number of leaves (nodes without children) in the tree"
+        return self.tree_.n_leaves
 
-    def get_max_depth(self):
+    def get_max_depth(self) -> int:
+        "The maximum depth in the tree"
         return self.tree_.get_max_depth(0)
 
-    def is_leaf(self, node_id: int):
-        return self.scores[node_id] == float('inf')
+    def is_leaf(self, node_id: int) -> bool:
+        return self.tree_.is_leaf(node_id)
     
-    def split_name(self, node_id: int):
+    def split_name(self, node_id: int) -> str:
         return self.features[self.split_features[node_id]]
 
     def _set_defaults(self, node_id: int, Y):
-        self.scores.append(float('inf'))
         val = Y.sum(axis=0)
         self.values.append(val)
         self.impurities.append(gini_score(val))
@@ -102,16 +109,19 @@ class DecisionTree:
         features = self.RandomState.permutation(self.n_features)[:self.n_features_split]
 
         # make the split
+        best_score = float('inf')
         for i in features:
-            self._find_bettersplit(i, X, Y, node_id)
-        if self.is_leaf(node_id):
-            # a split was not made, either because all X values are the same all because min_samples_leaf was not satisfied
+            best_score= self._find_bettersplit(i, X, Y, node_id, best_score)
+        if best_score == float('inf'):
+            if X.shape[0] <= self.min_samples_leaf:
+                return
+            # a split was not made, either because all X values are the same or because min_samples_leaf was not satisfied
             # try all other features to force a split
-            features2 = set(range(self.n_features)).difference(features) 
+            features2 = np.setxor1d(np.arange(self.n_features), features)
             features2 = self.RandomState.permutation(list(features2))
             for i in features2:
-                self._find_bettersplit(i, X, Y, node_id)
-            if self.is_leaf(node_id):
+                best_score = self._find_bettersplit(i, X, Y, node_id, best_score)
+            if best_score == float('inf'):
                 return # give up
 
         # make children
@@ -124,22 +134,21 @@ class DecisionTree:
             self.tree_.children_right[node_id] = self.size
             self._find_varsplit(X.iloc[rhs], Y[rhs[0], :], depth+1)
     
-    def _find_bettersplit(self, var_idx: int, X, Y, node_id: int):
+    def _find_bettersplit(self, var_idx: int, X, Y, node_id: int, best_score:float) -> float:
         X = X.values[:, var_idx] 
         n_samples = self.n_samples[node_id]
 
-        # sort the variables. Start with all on the right. Then move one sample to left one at a time
+        # sort the variables. 
         order = np.argsort(X)
         X_sort, Y_sort = X[order], Y[order, :]
+
+        #Start with all on the right. Then move one sample to left one at a time
         rhs_count = Y.sum(axis=0)
         lhs_count = np.zeros(rhs_count.shape)
-
         for i in range(0, n_samples-1):
             xi, yi = X_sort[i], np.argmax(Y_sort[i, :])
             lhs_count[yi] += 1;  rhs_count[yi] -= 1
-            if xi == X_sort[i+1]:
-                continue
-            if sum(lhs_count) < self.min_samples_leaf:
+            if (xi == X_sort[i+1]) or (sum(lhs_count) < self.min_samples_leaf):
                 continue
             if sum(rhs_count) < self.min_samples_leaf:
                 break
@@ -147,10 +156,11 @@ class DecisionTree:
             lhs_gini = gini_score(lhs_count)
             rhs_gini = gini_score(rhs_count)
             curr_score = (lhs_gini * lhs_count.sum() + rhs_gini * rhs_count.sum())/n_samples
-            if curr_score < self.scores[node_id]:
+            if curr_score < best_score:
                 self.split_features[node_id] = var_idx
-                self.scores[node_id] = curr_score
+                best_score = curr_score
                 self.split_values[node_id]= (xi + X_sort[i+1])/2
+        return best_score
 
     def _predict_row(self, xi):
         next_node = 0
@@ -160,12 +170,33 @@ class DecisionTree:
             next_node = left if xi[self.split_features[next_node]] <= self.split_values[next_node] else right
         return self.values[next_node]
 
+    def _predict_batch(self, X, node=0):
+        # Helper function for predict_prob(). Predicts multiple batches of a row at time. Faster than _predict_row(self, xi)
+        if self.is_leaf(node):
+            return self.values[node]
+        if len(X) == 0:
+            return np.empty((0, self.n_classes))
+        left = self.tree_.children_left[node]
+        right = self.tree_.children_right[node]
+
+        lhs = X[:, self.split_features[node]] <= self.split_values[node]
+        rhs = X[:, self.split_features[node]] >  self.split_values[node]
+
+        probs = np.zeros((X.shape[0], self.n_classes))
+        probs[lhs] = self._predict_batch(X[lhs], node=left)
+        probs[rhs] = self._predict_batch(X[rhs], node=right)
+        return probs
+
     def predict_prob(self, X):
         "Return the probability in the final leaf for each class, given as the fraction of each class in that leaf"
         if X.values.ndim == 1:
             probs = np.array([self._predict_row(X)])
         else:
-            probs = np.apply_along_axis(self._predict_row, 1, X.values)
+            #start_time = time.time()
+            #probs = np.apply_along_axis(self._predict_row, 1, X.values) # slow because this is a for loop
+            probs = self._predict_batch(X.values)
+            #end_time = time.time()
+            #print('%.1fms' % ((end_time-start_time)*1000))
             probs /= np.sum(probs, axis=1)[:, None]
         return probs
 
@@ -191,7 +222,7 @@ class DecisionTree:
         else:
             return n_samples, val, var_idx, split_val, impurity
 
-    def leaf_to_string(self, node_id: int) -> str:
+    def node_to_string(self, node_id: int) -> str:
         if self.is_leaf(node_id):
             n_samples, val = self.get_info(node_id)
             s = 'n_samples: {:d}; val: {}'.format(n_samples, val)
@@ -210,7 +241,18 @@ class BinaryTree():
 
     @property
     def size(self):
-        return max(len(self.children_left), len(self.children_right))
+        "The number of nodes in the tree"
+        return len(self.children_left)
+
+    @property
+    def n_leaves(self):
+        "The number of leaves (nodes without children) in the tree"
+        return self.children_left.count(-1) 
+
+    @property
+    def n_splits(self):
+        "The number of nodes (number of parameters/2) not counting the leaves in the tree"
+        return self.size - self.n_leaves
 
     def find_depths(self):
         depths = np.zeros(self.size, dtype=int)
@@ -238,21 +280,6 @@ class BinaryTree():
         left = self.children_left[node_id]
         right = self.children_right[node_id]
         return max(self.get_max_depth(left), self.get_max_depth(right)) + 1
-
-    def get_n_splits(self, node_id=0):
-        "Return the number of leaves (number of parameters/2) not counting the final leaves in the tree"
-        n_leaves = 0 
-        stack = [0]
-        while stack:
-            node_id = stack.pop()
-            if node_id == -1:
-                continue
-            if not self.is_leaf(node_id):
-                n_leaves += 1
-            left = self.children_left[node_id]
-            right = self.children_right[node_id]
-            stack.extend([left, right])
-        return n_leaves  
 
     def preorder(self, node_id=0):
         "Pre-order tree traversal"
@@ -292,6 +319,7 @@ if __name__ == '__main__':
     # descriptors
     print("max depth: %d" % tree.get_max_depth())
     print("n_splits:  %d" % tree.get_n_splits())
+    print("n_leaves:  %d" % tree.get_n_leaves())
 
     # accuracy
     y_pred = tree.predict(X_test)
@@ -300,10 +328,10 @@ if __name__ == '__main__':
     acc_train = np.mean(y_pred == y_train)
     print("train accuracy: %.2f%%" % (acc_train*100))
     print("test accuracy:  %.2f%%" % (acc_test*100))
-
+    
     depths = tree.depths
     for i, leaf in enumerate(tree.tree_.preorder()):
         d = depths[leaf]
-        print('%03d'%i,'-'*d, tree.leaf_to_string(leaf))
+        print('%03d'%i,'-'*d, tree.node_to_string(leaf))
         #print('%03d'%i,'-'*d, leaf)
         

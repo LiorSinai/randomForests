@@ -67,8 +67,8 @@ class TestRandomForest(unittest.TestCase):
         depth = tree0.get_max_depth()
         self.assertEqual(depth, 13)
 
-        n_leaves = sum([t.get_n_splits() for t in forest.trees])
-        self.assertEqual(n_leaves, 82)
+        n_leaves = sum([t.get_n_leaves() for t in forest.trees])
+        self.assertEqual(n_leaves, 83)
 
         # should be 100% correct on the training data
         y0 = forest.predict(X_train)
@@ -85,17 +85,31 @@ class TestRandomForest(unittest.TestCase):
         forest.fit(X_train, y_train)
 
         depths =[t.get_max_depth() for t in forest.trees]
-        n_leaves = [t.get_n_splits() for t in forest.trees]
+        n_leaves = [t.get_n_leaves() for t in forest.trees]
         self.assertEqual(sum(depths), 265)
-        self.assertEqual(sum(n_leaves), 1716)
+        self.assertEqual(sum(n_leaves), 1736)
 
-        if hasattr(forest, 'oob_score_'):
-            self.assertEqual(0.9847538115471132, forest.oob_score_)
+        self.assertAlmostEqual(0.9847538115471132, forest.oob_score_)
 
+        # feature importances
+        fi = [0.03290998, 0.02696517, 0.32195696, 0.12680437, 0.12968169,
+              0.25954914, 0.03072707, 0.00458653, 0.04989645, 0.00683082,
+              0.01009182]
+        for (var1, var2) in zip(forest.feature_importances_, fi):
+            self.assertAlmostEqual(var1, var2) 
+
+        fi_perm = forest.perm_feature_importance(X_train, y_train)['means']
+        fi = [0.00289928, 0.00272432, 0.19155211, 0.06698325, 0.02099475,
+              0.08990252, 0.00104974, 0.00027493, 0.00289928, 0.00062484,
+              0.00052487]
+        for (var1, var2) in zip(fi_perm, fi):
+            self.assertAlmostEqual(var1, var2) 
+            
         # should be mostly correct on the training data
         y0 = forest.predict(X_train)
         self.assertEqual(sum(y0==y_train), 4000)
 
+        # should have a high accuracy on the test data
         y1 = forest.predict(X_test)
         self.assertEqual(sum(y1==y_test), 984)
 

@@ -9,6 +9,7 @@ Benchmark using Sci-kit Learn
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.inspection import permutation_importance
+from sklearn.metrics import confusion_matrix
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -27,17 +28,26 @@ if __name__ == '__main__':
 
     #### -------------- simplest strategy -------------- ###
     print("Based on Income>100 only:")
-    y_pred = X['Income'] >= 100
-    acc_test = np.mean(y_pred == y)
-    print("full accuracy:  %.2f%%" % (acc_test*100))
-    y_pred = (X_train['Income'] >= 100)
+
+    def basic_model(X):
+        pred = np.full(X.shape[0], 1, dtype=bool)
+        pred = np.logical_and(pred, (X['Income'] >= 100))
+        #pred = np.logical_and(pred, (X['Securities Account'] == 0))
+        pred = np.logical_and(pred, (X['CCAvg'] > 3))
+        return pred
+    y_full = basic_model(X)
+    acc_full = np.mean(y_full == y)
+    print("full accuracy:  %.2f%%" % (acc_full*100))
+    y_pred = basic_model(X_train)
     acc_train = np.mean(y_pred == y_train)
     print("train accuracy: %.2f%%" % (acc_train*100))
-    y_pred = X_test['Income'] >= 100
+    y_pred = basic_model(X_test)
     acc_test = np.mean(y_pred == y_test)
     print("test accuracy:  %.2f%%" % (acc_test*100))
+    C = confusion_matrix(y, y_full)
+    print(C)
     print("")
-
+    
     #### -------------- random forest classifier  -------------- ###
 
     rfc = RandomForestClassifier(random_state=42, oob_score=True, min_samples_leaf=3)

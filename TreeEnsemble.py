@@ -8,9 +8,12 @@ https://course18.fast.ai/lessonsml1/lesson5.html
 
 import numpy as np
 import pandas as pd
+import warnings
+import time
+from typing import List, Tuple, Dict
 
 from DecisionTree import DecisionTree
-from utilities import split_data, split_data, check_RandomState, check_sample_size, encode_one_hot
+from utilities import split_data, check_RandomState, check_sample_size, encode_one_hot
 
 class RandomForestClassifier:
     def __init__(self, 
@@ -22,20 +25,21 @@ class RandomForestClassifier:
                 sample_size=None, 
                 bootstrap=True, 
                 oob_score=False):
-        self.RandomState = check_RandomState(random_state)
-        self.sample_size = sample_size
-        self.max_depth = max_depth
         self.n_trees = n_trees
-        self.bootstrap = bootstrap
+        self.RandomState = check_RandomState(random_state)
+        self.max_depth = max_depth
         self.max_features = max_features
-        self.oob_score = oob_score
         self.min_samples_leaf=min_samples_leaf
+        self.sample_size = sample_size
+        self.bootstrap = bootstrap
+        self.oob_score = oob_score
 
         self.n_features = None
         self.n_classes = None
         self.feature_importances_ = None
         
     def fit(self, X, Y):
+        "fit the random tree to the independent variable X, to determine the dependent variable Y"
         if Y.ndim == 1:
             Y = encode_one_hot(Y) # one-hot encoded y variable
         elif Y.shape[1] == 1:
@@ -49,17 +53,16 @@ class RandomForestClassifier:
         self.trees = []
         if self.oob_score:
             if not oob_possible:
-                print("Warning: out-of-bag score will not be calculated because bootstrap=False")
+                warnings.warn("out-of-bag score will not be calculated because bootstrap=False")
             else:
                 oob_prob = np.zeros(Y.shape)
                 oob_count = np.zeros((n_samples))
-                all_samples = set(range(n_samples))
+                all_samples = np.arange(n_samples)
         for i in range(self.n_trees):
             new_tree, rows = self._create_tree(X, Y) 
             self.trees.append(new_tree)
             if self.oob_score and oob_possible:
-                row_oob = all_samples.difference(rows) # approximately length=n*(1-np.exp(-sample_size/n_samples))
-                row_oob = np.array(list(row_oob))
+                row_oob = np.setxor1d(all_samples, rows)
                 oob_prob[row_oob, :] += new_tree.predict_prob(X.iloc[row_oob])
                 oob_count[row_oob] += 1
 
@@ -68,12 +71,11 @@ class RandomForestClassifier:
         self.n_classes = Y.shape[1]
         self.feature_importances_ = self.gini_feature_importance()
         if self.oob_score and oob_possible:
-            y_test = np.argmax(Y, axis=1)
             # remove nan-values
             valid = oob_count > 0 
             oob_prob = oob_prob[valid, :]
-            oob_count = oob_count[valid][:, np.newaxis]
-            y_test    = y_test[valid]
+            oob_count = oob_count[valid][:, np.newaxis] # transform to column vector for broadcasting during the division
+            y_test    =  np.argmax(Y[valid], axis=1)
             # predict out-of-bag score
             y_pred = np.argmax(oob_prob/oob_count, axis=1)
             self.oob_score_ = np.mean(y_pred==y_test)
@@ -85,7 +87,7 @@ class RandomForestClassifier:
         # get sub-sample 
         if self.bootstrap:
             rand_idxs = self.RandomState.randint(0, n_samples, self.sample_size_) # with replacement
-            X_, Y_ = X.iloc[rand_idxs, :], Y[rand_idxs]
+            X_, Y_ = X.iloc[rand_idxs, :], Y[rand_idxs] # approximate unique values =n*(1-np.exp(-sample_size_/n_samples))
         elif self.sample_size_ < n_samples:
             rand_idxs = self.RandomState.permutation(np.arange(n_samples))[:self.sample_size_]  # without replacement
             X_, Y_ = X.iloc[rand_idxs, :], Y[rand_idxs]
@@ -101,16 +103,17 @@ class RandomForestClassifier:
                             ), rand_idxs
                 
     def predict(self, X):
+        "Predict the class for each sample in X"
         probs = np.sum([t.predict_prob(X) for t in self.trees], axis=0)
         #probs = np.sum([t.predict_count(X) for t in self.trees], axis=0)
-        probs
         return np.nanargmax(probs, axis=1)
 
     def score(self, X, y):
+        "The accuracy score of random forest predictions for X to the true classes y"
         y_pred = self.predict(X)
         return np.mean(y_pred==y)
 
-    def gini_feature_importance(self):
+    def gini_feature_importance(self) -> np.ndarray:
         """Calculate feature importance weighted by the number of samples affected by this feature at each split point.
            Independent of input or output data
         """
@@ -123,8 +126,15 @@ class RandomForestClassifier:
                     continue 
                 j = tree.split_features[node]
                 impurity = tree.impurities[node]
-                score = tree.scores[node]
                 n_samples = tree.n_samples[node]
+                # calculate score
+                left = tree.tree_.children_left[node]
+                right = tree.tree_.children_right[node]
+                lhs_gini = tree.impurities[left]
+                rhs_gini = tree.impurities[right]
+                lhs_count = tree.n_samples[left]
+                rhs_count = tree.n_samples[right]
+                score = (lhs_gini * lhs_count + rhs_gini * rhs_count)/n_samples
                 # feature_importances      = (decrease in node impurity) * (probability of reaching node ~ proportion of samples)
                 feature_importances[i, j] += (impurity-score) * (n_samples/total_samples)
 
@@ -133,7 +143,7 @@ class RandomForestClassifier:
 
         return np.mean(feature_importances, axis=0)
 
-    def perm_feature_importance(self, X, y, n_repeats=10):
+    def perm_feature_importance(self, X, y, n_repeats=10) -> Dict:
         """Calculate feature importance based on random permutations of each feature column.
         The larger the drop in accuracy from shuffling each column, the higher the feature importance.
         """
@@ -169,35 +179,43 @@ if __name__ == "__main__":
     forest = RandomForestClassifier(n_trees=20, 
                                     bootstrap=True,
                                     sample_size=1.0, # default is None
-                                    max_features='sqrt', # default is None
+                                    max_features=5, # default is None
                                     #max_depth = 5, # default is None
                                     oob_score=True,
-                                    min_samples_leaf=5,
+                                    min_samples_leaf=3,
                                     random_state=42)
 
+    start_time = time.time()
     forest.fit(X_train, y_train)
+    end_time = time.time()
+    print('Fitting time: %.3fs' % ((end_time-start_time)))
 
     # display descriptors
     depths =[t.get_max_depth() for t in forest.trees]
-    n_leaves = [t.get_n_splits() for t in forest.trees]
+    n_splits = [t.get_n_splits() for t in forest.trees]
+    n_leaves = [t.get_n_leaves() for t in forest.trees]
     acc_test = forest.score(X_test, y_test)
     acc_train = forest.score(X_train, y_train)
     print("depth range, average:    %d-%d, %.2f" % (np.min(depths), np.max(depths), np.mean(depths)))
+    print("n_splits range, average: %d-%d, %.2f" % (np.min(n_splits), np.max(n_splits), np.mean(n_splits)))
     print("n_leaves range, average: %d-%d, %.2f" % (np.min(n_leaves), np.max(n_leaves), np.mean(n_leaves)))
+    print("train accuracy: %.2f%%" % (acc_train*100))
     if hasattr(forest, 'oob_score_'):
         print("oob accuracy:   %.2f%%" % (forest.oob_score_*100))
-    print("train accuracy: %.2f%%" % (acc_train*100))
     print("test accuracy:  %.2f%%" % (acc_test*100))
 
     ### ----------- Feaure importance ----------- ###### 
+    start_time = time.time()
     fi_perm   = forest.perm_feature_importance(X_train, y_train) # very slow
+    end_time = time.time()
+    print('Permutation importance time: %.3fs' % ((end_time-start_time)))
     fi1 = fi_perm['means']
     fi2 = forest.feature_importances_
     for fi in (fi1, fi2):
         order = np.argsort(fi)[::-1] # descending order
         print("Feature importances")
         for col, val in zip(X_train.columns[order], fi[order]):
-            print('%s: %.4f' % (col, val)) 
+            print('%-15s %.4f' % (col+':', val)) 
 
     #import matplotlib.pyplot as plt # comment out to avoid dependency 
     # order = np.argsort(fi_perm['means'])

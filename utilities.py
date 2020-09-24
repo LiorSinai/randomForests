@@ -9,6 +9,7 @@ Scratchpad
 
 import numpy as np
 import pandas as pd
+import warnings
 
 
 def split_data(X, y, test_size=0.1, seed=1):
@@ -44,7 +45,6 @@ def encode_one_hot(data): # note: pd.get_dummies(df) does the same
     one_hot[rows, data] = 1
     return one_hot
 
-
 def check_RandomState(random_state):
     """ Parse different input types for the random state"""
     if  random_state is None: 
@@ -63,7 +63,7 @@ def check_sample_size(sample_size, n_samples):
         n = n_samples
     elif isinstance(sample_size, int):
         if sample_size == 1:
-            print("Warning, interpreting sample_size as 1 sample. Use sample_size=1.0 for 100% of the data")
+            warnings.warn("Interpreting sample_size as 1 sample. Use sample_size=1.0 for 100% of the data")
         n = min(sample_size, n_samples)
     elif isinstance(sample_size, float):
         frac = min(sample_size, 1)

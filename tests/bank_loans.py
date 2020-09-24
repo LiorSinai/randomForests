@@ -75,7 +75,7 @@ if __name__ == '__main__':
     ax.set_xticks(data[target].unique())
     ax.set_title("Target variable: %s" % target)
 
-    print(data.corr()[target])
+    print(data.corr()[target].sort_values(ascending=False))
 
     # zero in on income data
     

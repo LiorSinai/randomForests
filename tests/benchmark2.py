@@ -151,7 +151,7 @@ if __name__ == '__main__':
 
     # Number of splits in the forest
     n_sk_leaves = [e.get_n_leaves() for e in skForest.estimators_]
-    n_leaves = [t.get_n_splits() for t in forest.trees]
+    n_leaves = [t.get_n_leaves() for t in forest.trees]
     print("TE n_leaves range, average: %d-%d, %.2f" % (np.min(n_sk_leaves), np.max(n_sk_leaves), np.mean(n_sk_leaves)))
     print("SK n_leaves range, average: %d-%d, %.2f" % (np.min(n_leaves), np.max(n_leaves), np.mean(n_leaves)))
 
@@ -166,16 +166,17 @@ if __name__ == '__main__':
     y0 = forest.predict(X_test)
     print("SK Correct predictions: %.3f" % (np.mean(ySk==y_test)))
     print("TE Correct predictions: %.3f" % (np.mean(y0==y_test)))
+    print("")
 
     # feature importance
-    if 1==0:
+    if 1==1:
         fi_sk = []
         for tree in skForest.estimators_:
             _, _, fi= traverse_tree_sk(tree) 
             fi_sk.append(fi)
         fi_sk = np.mean(fi_sk, axis=0)
         
-        fi1 = forest.perm_feature_importance(X_train, y_train) # slow
+        fi1 = forest.perm_feature_importance(X_train, y_train)['means']
         fi_sk = permutation_importance(skForest, X_train, y_train).importances_mean
 
         #fi2 = forest.gini_feature_importance()  # gini impurity feature importance
@@ -186,6 +187,7 @@ if __name__ == '__main__':
             print("Feature importances")
             for col, val in zip(X_train.columns[order], fi[order]):
                 print('%s: %.4f' % (col, val)) 
+        print("")
     
     skTree0 = skForest.estimators_[0]
     myTree0 = forest.trees[0]
@@ -197,16 +199,17 @@ if __name__ == '__main__':
             d = depths[node_id]
             s = sklearn_leaf_to_string(skTree0, node_id)
             print('%03d'%i, '-'*d, '%s' % s)
+        print("")
             
         # print myTree
-        for i, leaf in enumerate(myTree0.preorder()):
-            d = leaf.depth
-            print('%03d'%i,'-'*d, leaf)
+        for i, node in enumerate(myTree0.tree_.preorder()):
+            d = myTree0.depths[node]
+            print('%03d'%i,'-'*d, myTree0.node_to_string(node))
+        print("")
 
     if 1==1:
         # compare all leaves
         skLeaves = []
-        skDepths = []
         for node_id in (preorder_sk(skTree0)):
             skLeaves.append(get_info_sklearn_leaf(skTree0, node_id))
         myLeaves = []
@@ -217,13 +220,19 @@ if __name__ == '__main__':
         # note: leaves may be printed in different orders. When sample number is low, the choice for splitting is almost random
         # Therefore it is highly unlikely these will be the exact same
         # Also if there is slight difference in the number of splits, than that offsets everything else and makes the rest look wrong
+        num_same = 0
+        total_parameters = 0
         for i, info in enumerate(zip(skLeaves, myLeaves)):
             info_sk_leaf, info_my_leaf = info
             print(i, end = ' ')
             for (var1, var2) in zip(info_sk_leaf, info_my_leaf):
                 if isinstance(var2, list) or isinstance(var2, np.ndarray):
                     var2 = var2[1]/sum(var2)
-                print(almostEqual(var1, var2), end=', ')
+                same = almostEqual(var1, var2)
+                total_parameters += 1
+                num_same += same
+                print(same, end=', ')
             print('')
+        print("number of same parameters: %d, %.2f%%" % (num_same, num_same/total_parameters*100))
 
 
