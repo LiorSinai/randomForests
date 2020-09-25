@@ -17,6 +17,7 @@ import sys
 sys.path.append(".") # hack to add level above to the system path
 
 from TreeEnsemble import RandomForestClassifier as RFC
+from utilities import perm_feature_importance
 
 def preorder_sk(tree, node_id=0):
     "Pre-order tree traversal"
@@ -119,10 +120,14 @@ if __name__ == '__main__':
     n_trees = 1
     max_features = None
     bootstrap = False
+    min_samples_leaf = 1
+    compare_trees = True
     ## for multiple trees:
-    # n_trees = 20
-    # max_features = 'sqrt'
-    # bootstrap = True
+    n_trees = 20
+    max_features = 'sqrt'
+    bootstrap = True
+    min_samples_leaf = 3
+    compare_trees = False
 
     # TreeEnsemble only parameters
     sample_size = None
@@ -131,11 +136,13 @@ if __name__ == '__main__':
                  bootstrap=bootstrap,
                  max_features=max_features,
                  sample_size=sample_size,
+                 min_samples_leaf= min_samples_leaf,
                  random_state=42)
     skForest = RFC_sk(n_estimators=n_trees, 
                       random_state=42, 
                       bootstrap=bootstrap, 
                       max_features=max_features,
+                      min_samples_leaf = min_samples_leaf,
                       criterion='gini')
 
     # load data
@@ -176,7 +183,7 @@ if __name__ == '__main__':
             fi_sk.append(fi)
         fi_sk = np.mean(fi_sk, axis=0)
         
-        fi1 = forest.perm_feature_importance(X_train, y_train)['means']
+        fi1 = perm_feature_importance(forest, X_train, y_train, random_state=1)['means']
         fi_sk = permutation_importance(skForest, X_train, y_train).importances_mean
 
         #fi2 = forest.gini_feature_importance()  # gini impurity feature importance
@@ -192,7 +199,7 @@ if __name__ == '__main__':
     skTree0 = skForest.estimators_[0]
     myTree0 = forest.trees[0]
 
-    if 1==1:
+    if 1==0:
         # print Sklearn tree
         depths, _, _ = traverse_tree_sk(skTree0) 
         for i, node_id in enumerate(preorder_sk(skTree0)):
@@ -207,14 +214,14 @@ if __name__ == '__main__':
             print('%03d'%i,'-'*d, myTree0.node_to_string(node))
         print("")
 
-    if 1==1:
+    if compare_trees:
         # compare all leaves
         skLeaves = []
         for node_id in (preorder_sk(skTree0)):
             skLeaves.append(get_info_sklearn_leaf(skTree0, node_id))
         myLeaves = []
-        for j, leaf in enumerate(myTree0.tree_.preorder()):
-            myLeaves.append(myTree0.get_info(leaf))
+        for j, node in enumerate(myTree0.tree_.preorder()):
+            myLeaves.append(myTree0.get_info(node))
   
         # print which values are the same
         # note: leaves may be printed in different orders. When sample number is low, the choice for splitting is almost random
@@ -233,6 +240,30 @@ if __name__ == '__main__':
                 num_same += same
                 print(same, end=', ')
             print('')
+        print("number of same variables: %d, %.2f%%" % (num_same, num_same/total_parameters*100))
+
+        # compare only split parameters, 2 per node: split_idx and split_val
+        # compare all leaves
+        skLeaves = []
+        for node_id in (preorder_sk(skTree0)):
+            is_leaf = (skTree0.tree_.children_left[node_id] == -1)
+            if not is_leaf:
+                n_samples, val, split_idx, split_val, score = get_info_sklearn_leaf(skTree0, node_id)
+                skLeaves.append([split_idx, split_val])
+        myLeaves = []
+        for node_id in myTree0.tree_.preorder():
+            if not myTree0.is_leaf(node_id):
+                n_samples, val, split_idx, split_val, impurity = myTree0.get_info(node_id)
+                myLeaves.append([split_idx, split_val])
+        num_same = 0
+        total_parameters = 0
+        for i, info in enumerate(zip(skLeaves, myLeaves)):
+            for (var1, var2) in zip(info_sk_leaf, info_my_leaf):
+                if isinstance(var2, list) or isinstance(var2, np.ndarray):
+                    var2 = var2[1]/sum(var2)
+                same = almostEqual(var1, var2)
+                total_parameters += 1
+                num_same += same
         print("number of same parameters: %d, %.2f%%" % (num_same, num_same/total_parameters*100))
 
 

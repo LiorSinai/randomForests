@@ -46,8 +46,7 @@ if __name__ == '__main__':
     y_pred = baseline_model(X_test)
     acc_test = np.mean(y_pred == y_test)
     print("test accuracy:  %.2f%%" % (acc_test*100))
-    C = confusion_matrix(y, y_full)
-    print(C)
+    print(confusion_matrix(y, y_full))
     print("")
     
     #### -------------- random forest classifier  -------------- ###

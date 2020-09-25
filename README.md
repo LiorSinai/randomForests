@@ -28,8 +28,6 @@ It has the following external methods:
 - `fit(X,Y)`: fit the data to the random forest classifier. Y can have multiple classes. Sklearn equivalent: fit().
 - `predict(X) [array]`: returns the predicted classes y for the independent variable X. Predictions are made using majority voting between trees. Sklearn equivalent: predict().
 - `score(X, y) [float]`: returns the fraction of correct predictions of X for y. Sklearn equivalent: score().
-- `perm_feature_importance(X, y, n_repeats=10) [dict]`: calculates the feature importance as the change in accuracy when this feature column is randomly shuffled (permuted). 
-Runs it n_repeats times. Keys are 'means' and 'stds' for the mean and standard deviations per feature over the trials. Sklearn equivalent: N/A.
 
 It has the following attributes:
 - `trees [array]`: list of DecisionTree. Sklearn equivalent: estimators_. 
@@ -65,7 +63,7 @@ Sklearn equivalent: predict_proba().
 Sklearn equivalent: N/A. 
 - `predict(X) [array]`: returns the class predictions for X based on the maximum class probability from predict_prob. Sklearn equivalent: predict().
 - `get_info(node_id) [array]`: returns values associated with this node in the tree. Sklearn equivalent: N/A.
-- `leaf_to_string(node_id) [str]`: returns a formatted string of the get_info(node_id) data. Sklearn equivalent: N/A.
+- `node_to_string(node_id) [str]`: returns a formatted string of the get_info(node_id) data. Sklearn equivalent: N/A.
  
 It has the following attributes:
 - `tree_ [BinaryTree]`: A binary tree encoded as a set of parallel lists for children_left and children_right. Sklearn equivalent: tree_. 

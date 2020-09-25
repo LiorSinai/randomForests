@@ -15,7 +15,7 @@ import sys
 sys.path.append(".") # hack to add level above to the system path
 
 from TreeEnsemble import RandomForestClassifier 
-from utilities import split_data
+from utilities import split_data, perm_feature_importance
 
 
 class TestRandomForest(unittest.TestCase):
@@ -98,11 +98,11 @@ class TestRandomForest(unittest.TestCase):
         for (var1, var2) in zip(forest.feature_importances_, fi):
             self.assertAlmostEqual(var1, var2) 
 
-        fi_perm = forest.perm_feature_importance(X_train, y_train)['means']
+        fi_perm = perm_feature_importance(forest, X_train, y_train, random_state=forest.RandomState)
         fi = [0.00289928, 0.00272432, 0.19155211, 0.06698325, 0.02099475,
               0.08990252, 0.00104974, 0.00027493, 0.00289928, 0.00062484,
               0.00052487]
-        for (var1, var2) in zip(fi_perm, fi):
+        for (var1, var2) in zip(fi_perm['means'], fi):
             self.assertAlmostEqual(var1, var2) 
             
         # should be mostly correct on the training data

@@ -13,7 +13,7 @@ import time
 from typing import List, Tuple, Dict
 
 from DecisionTree import DecisionTree
-from utilities import split_data, check_RandomState, check_sample_size, encode_one_hot
+from utilities import split_data, check_RandomState, check_sample_size, encode_one_hot, perm_feature_importance
 
 class RandomForestClassifier:
     def __init__(self, 
@@ -151,23 +151,6 @@ class RandomForestClassifier:
 
         return np.mean(feature_importances, axis=0)
 
-    def perm_feature_importance(self, X, y, n_repeats=10) -> Dict:
-        """Calculate feature importance based on random permutations of each feature column.
-        The larger the drop in accuracy from shuffling each column, the higher the feature importance.
-        """
-        y_pred = self.predict(X)
-        acc_full = np.mean(y_pred == y)
-
-        feature_importances = np.zeros((n_repeats, self.n_features))
-        for j, col in enumerate(X.columns):
-            X_sub = X.copy()
-            for i in range(n_repeats):
-                X_sub[col] = self.RandomState.permutation(X_sub[col].values)
-                y_pred = self.predict(X_sub)
-                feature_importances[i, j] = acc_full - np.mean(y_pred == y)
-
-        return {'means': np.mean(feature_importances, axis=0), 'stds': np.std(feature_importances, axis=0)}
-
 
 if __name__ == "__main__":
     # load data
@@ -214,7 +197,7 @@ if __name__ == "__main__":
 
     ### ----------- Feaure importance ----------- ###### 
     start_time = time.time()
-    fi_perm   = forest.perm_feature_importance(X_train, y_train) # very slow
+    fi_perm   =  perm_feature_importance(forest, X_train, y_train, random_state=forest.RandomState) # very slow
     end_time = time.time()
     print('Permutation importance time: %.3fs' % ((end_time-start_time)))
     fi1 = fi_perm['means']

@@ -10,6 +10,7 @@ Scratchpad
 import numpy as np
 import pandas as pd
 import warnings
+from typing import List, Tuple, Dict
 
 
 def split_data(X, y, test_size=0.1, seed=1):
@@ -71,3 +72,27 @@ def check_sample_size(sample_size, n_samples):
     else:
         raise ValueError("Improper type \'%s\' for sample_size" %type(sample_size))
     return n
+
+def perm_feature_importance(model, X, y, n_repeats=10, random_state=None) -> Dict:
+    """Calculate feature importance based on random permutations of each feature column.
+    The larger the drop in accuracy from shuffling each column, the higher the feature importance.
+
+    """
+    if getattr(model, 'predict', None) is None:
+        raise Exception("model does not have a predict method")
+
+    y_pred = model.predict(X)
+    acc_full = np.mean(y_pred == y)
+    n_features = X.shape[1]
+
+    random_instance = check_RandomState(random_state)
+
+    feature_importances = np.zeros((n_repeats, n_features))
+    for j, col in enumerate(X.columns):
+        X_sub = X.copy()
+        for i in range(n_repeats):
+            X_sub[col] = random_instance.permutation(X_sub[col].values)
+            y_pred = model.predict(X_sub)
+            feature_importances[i, j] = acc_full - np.mean(y_pred == y)
+
+    return {'means': np.mean(feature_importances, axis=0), 'stds': np.std(feature_importances, axis=0)}

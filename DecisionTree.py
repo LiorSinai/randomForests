@@ -14,7 +14,7 @@ Decision tree v3
 
 import numpy as np
 import pandas as pd
-from utilities import split_data, check_RandomState, encode_one_hot
+from utilities import split_data, check_RandomState, encode_one_hot, perm_feature_importance
 from typing import List, Tuple, Dict
 
 import time
@@ -329,9 +329,17 @@ if __name__ == '__main__':
     print("train accuracy: %.2f%%" % (acc_train*100))
     print("test accuracy:  %.2f%%" % (acc_test*100))
     
+    # feature importance
+    fi_perm = perm_feature_importance(tree, X_train, y_train, random_state=1) 
+    fi = fi_perm['means']
+    order = np.argsort(fi)[::-1] # descending order
+    print("Feature importances")
+    for col, val in zip(X_train.columns[order], fi[order]):
+        print('%-15s %.4f' % (col+':', val)) 
+
     depths = tree.depths
     for i, leaf in enumerate(tree.tree_.preorder()):
         d = depths[leaf]
         print('%03d'%i,'-'*d, tree.node_to_string(leaf))
         #print('%03d'%i,'-'*d, leaf)
-        
+    
