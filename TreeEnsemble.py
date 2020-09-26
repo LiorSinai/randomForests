@@ -57,7 +57,7 @@ class RandomForestClassifier:
         # set attributes
         self.n_features = X.shape[1]
         self.n_classes = Y.shape[1]
-        self.feature_importances_ = self.gini_feature_importance()
+        self.feature_importances_ = self.impurity_feature_importances()
 
         if self.oob_score:
             if not (self.bootstrap or (self.sample_size_<n_samples)):
@@ -121,33 +121,12 @@ class RandomForestClassifier:
         y_pred = self.predict(X)
         return np.mean(y_pred==y)
 
-    def gini_feature_importance(self) -> np.ndarray:
-        """Calculate feature importance weighted by the number of samples affected by this feature at each split point.
-           Independent of input or output data
-        """
+    def impurity_feature_importances(self) -> np.ndarray:
+        """Calculate feature importance weighted by the number of samples affected by this feature at each split point. """
         feature_importances = np.zeros((self.n_trees, self.n_features))
-        total_samples = self.trees[0].n_samples[0]
 
         for i, tree in enumerate(self.trees):
-            for node in range(len(tree.impurities)):
-                if tree.is_leaf(node):
-                    continue 
-                j = tree.split_features[node]
-                impurity = tree.impurities[node]
-                n_samples = tree.n_samples[node]
-                # calculate score
-                left = tree.tree_.children_left[node]
-                right = tree.tree_.children_right[node]
-                lhs_gini = tree.impurities[left]
-                rhs_gini = tree.impurities[right]
-                lhs_count = tree.n_samples[left]
-                rhs_count = tree.n_samples[right]
-                score = (lhs_gini * lhs_count + rhs_gini * rhs_count)/n_samples
-                # feature_importances      = (decrease in node impurity) * (probability of reaching node ~ proportion of samples)
-                feature_importances[i, j] += (impurity-score) * (n_samples/total_samples)
-
-        # normalise per tree
-        feature_importances = feature_importances/feature_importances.sum(axis=1)[:, None]
+            feature_importances[i, :] = tree.feature_importances_
 
         return np.mean(feature_importances, axis=0)
 

@@ -14,8 +14,7 @@ Decision tree v3
 
 import numpy as np
 import pandas as pd
-from utilities import split_data, check_RandomState, encode_one_hot, perm_feature_importance
-from utilities import confusion_matrix
+from utilities import *
 from typing import List, Tuple, Dict
 
 import time
@@ -69,6 +68,7 @@ class DecisionTree:
         self._find_varsplit(X, Y, 0) 
 
         # set attributes
+        self.feature_importances_ = self.impurity_feature_importance()
         self.depths = self.tree_.find_depths()
 
     def get_n_splits(self) -> int:
@@ -209,6 +209,29 @@ class DecisionTree:
             return np.array([self._predict_row(X.values)])
         return np.apply_along_axis(self._predict_row, 1, X.values)
 
+    def impurity_feature_importance(self):
+        """Calculate feature importance weighted by the number of samples affected by this feature at each split point. """
+        feature_importances = np.zeros(self.n_features)
+        total_samples = self.n_samples[0]
+        for node in range(len(self.impurities)):
+            if self.is_leaf(node):
+                continue 
+            spit_feature = self.split_features[node]
+            impurity = self.impurities[node]
+            n_samples = self.n_samples[node]
+            # calculate score
+            left, right = self.tree_.get_children(node)
+            lhs_gini = self.impurities[left]
+            rhs_gini = self.impurities[right]
+            lhs_count = self.n_samples[left]
+            rhs_count = self.n_samples[right]
+            score = (lhs_gini * lhs_count + rhs_gini * rhs_count)/n_samples
+            # feature_importances      = (decrease in node impurity) * (probability of reaching node ~ proportion of samples)
+            feature_importances[spit_feature] += (impurity-score) * (n_samples/total_samples)
+
+        feature_importances = feature_importances/feature_importances.sum()
+        return feature_importances
+
     def get_info(self, node_id: int):
         n_samples =  self.n_samples[node_id]
         val =        self.values[node_id]
@@ -338,15 +361,24 @@ if __name__ == '__main__':
     acc_train = np.mean(y_pred == y_train)
     print("train accuracy: %.2f%%" % (acc_train*100))
     print("test accuracy:  %.2f%%" % (acc_test*100))
-    print(confusion_matrix(y_test, tree.predict(X_test)))
+    y_pred = tree.predict(X_test)
+    C = confusion_matrix(y_test, y_pred)
+    print(C)
+    if C.shape[0] == 2:
+        precision, recall, f1 = calc_f1_score(y_test, y_pred)
+        print("precision, recall, F1: {:.2f}%, {:.2f}%, {:.2f}%".format(precision*100, recall*100, f1*100))
+    print("")
     
     # feature importance
     fi_perm = perm_feature_importance(tree, X_train, y_train, random_state=1) 
-    fi = fi_perm['means']
-    order = np.argsort(fi)[::-1] # descending order
-    print("Feature importances")
-    for col, val in zip(X_train.columns[order], fi[order]):
-        print('%-15s %.4f' % (col+':', val)) 
+    fi1 = fi_perm['means']
+    fi2 = tree.feature_importances_
+    for fi in (fi1, fi2):
+        order = np.argsort(fi)[::-1] # descending order
+        print("Feature importances")
+        for col, val in zip(X_train.columns[order], fi[order]):
+            print('%-15s %.4f' % (col+':', val)) 
+    print("")
 
     depths = tree.depths
     for i, leaf in enumerate(tree.tree_.preorder()):

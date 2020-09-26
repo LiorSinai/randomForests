@@ -58,7 +58,7 @@ def check_RandomState(random_state):
         raise ValueError ("improper type \'%s\' for random_state parameter" % type(random_state))
     return rng
 
-def check_sample_size(sample_size, n_samples):
+def check_sample_size(sample_size, n_samples: int):
     if sample_size is None:
         n = n_samples
     elif isinstance(sample_size, int):
@@ -78,10 +78,10 @@ def confusion_matrix(y_actual, y_pred):
         raise ValueError ("input arrays must have the same shape, {}!={}".format(y_actual.shape, y_pred.shape))
     n = max(max(y_actual), max(y_pred)) + 1
     C = np.zeros((n, n), dtype=int)
-    for cat_true in range(n):
-        idxs_true = (y_actual == cat_true)
-        for cat_pred in range(n):
-            C[cat_true, cat_pred] = sum(y_pred[idxs_true] == cat_pred)
+    for label_actual in range(n):
+        idxs_true = (y_actual == label_actual)
+        for label_pred in range(n):
+            C[label_actual, label_pred] = sum(y_pred[idxs_true] == label_pred)
     return C
 
 def calc_f1_score(y_actual, y_pred) -> Tuple[float]:
