@@ -97,8 +97,9 @@ if __name__ == '__main__':
     # ax.set_xticks(data[target].unique())
     
 
-    target_corrs = data.corr()[target].drop(target, axis= 0).sort_values(ascending=False)
-    print(target_corrs)
+    target_corrs = data.corr()[target].drop(target, axis= 0)
+    order = np.argsort(-abs(target_corrs)) # negative for descending order sort by magnitude
+    print(target_corrs[order])
 
     # zero in on income data
     

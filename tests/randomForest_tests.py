@@ -25,7 +25,7 @@ class TestRandomForest(unittest.TestCase):
         data = pd.read_csv(file_name)
         X = data.drop(columns=[target])
         y = data[target]
-        X_train, X_test, y_train, y_test = split_data(X, y, test_size=0.20, seed=42)
+        X_train, X_test, y_train, y_test = split_data(X, y, test_size=999, seed=42)
 
         self.data = X_train, X_test, y_train, y_test
 

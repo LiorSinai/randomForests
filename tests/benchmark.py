@@ -13,8 +13,11 @@ from sklearn.metrics import confusion_matrix
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
 import time
+
+import sys
+sys.path.append(".") # hack to add level above to the system path
+from utilities import calc_f1_score
 
 if __name__ == '__main__':
     #### -------------- load data  -------------- ###
@@ -35,7 +38,7 @@ if __name__ == '__main__':
         pred = np.full(X.shape[0], 1, dtype=bool)
         pred = np.logical_and(pred, (X['Income'] >= 100))
         #pred = np.logical_and(pred, (X['Securities Account'] == 0))
-        pred = np.logical_and(pred, (X['CCAvg'] > 3))
+        #pred = np.logical_and(pred, (X['CCAvg'] > 3))
         return pred
     y_full = baseline_model(X)
     acc_full = np.mean(y_full == y)
@@ -47,16 +50,28 @@ if __name__ == '__main__':
     acc_test = np.mean(y_pred == y_test)
     print("test accuracy:  %.2f%%" % (acc_test*100))
     print(confusion_matrix(y, y_full))
+    precision, recall, f1 = calc_f1_score(y, y_full)
+    print("precision, recall, f1: {:.2f}%, {:.2f}%, {:.2f}%".format(precision*100, recall*100, f1*100))
     print("")
     
     #### -------------- random forest classifier  -------------- ###
-
-    rfc = RandomForestClassifier(random_state=42, oob_score=True, min_samples_leaf=3)
-
+    warm_start=False
     start_time = time.time()
-    rfc.fit(X_train, y_train)
+    if warm_start:
+        rfc = RandomForestClassifier(random_state=42, bootstrap=True, min_samples_leaf=3, warm_start=warm_start, n_estimators=0)
+        sample_size = 3500
+        random_instance = np.random.RandomState(100)
+        for i in range(100):
+            rfc.n_estimators += 1
+            rand_idxs = random_instance.permutation(np.arange(X_train.shape[0]))[:sample_size]
+            rfc.fit(X_train.iloc[rand_idxs,:], y_train.iloc[rand_idxs])
+    else:
+        rfc = RandomForestClassifier(random_state=42, oob_score=True, min_samples_leaf=3)
+        rfc.fit(X_train, y_train)
     end_time = time.time()
     print("fitting time: {:4f}s".format(end_time-start_time))
+
+
 
     # display descriptors
     depths =[e.get_depth() for e in rfc.estimators_]
@@ -69,17 +84,22 @@ if __name__ == '__main__':
         print("oob accuracy:   %.2f%%" % (rfc.oob_score_*100))
     print("train accuracy: %.2f%%" % (acc_train*100))
     print("test accuracy:  %.2f%%" % (acc_test*100))
+    y_pred = rfc.predict(X_test)
+    print(confusion_matrix(y_test, y_pred))
+    precision, recall, f1 = calc_f1_score(y_test, y_pred)
+    print("precision, recall, f1: {:.2f}%, {:.2f}%, {:.2f}%".format(precision*100, recall*100, f1*100))
+    print("")
 
     # feature importance
     fi = permutation_importance(rfc, X_train, y_train)
     fi_means = fi.importances_mean
     fi_std = fi.importances_std
-    order = np.argsort(fi_means) # order by magnitude
+    order = np.argsort(fi_means) # order by magnitude of the permutation importances
 
     fig, ax = plt.subplots()
     inds = np.arange(n_features)
     width = 0.4
-    fi = fi_means[order]/fi_means.sum()
+    fi = fi_means[order]/fi_means.sum() # sort and normalise
     ax.barh(inds+width/2, fi, width, xerr=fi_std[order], label='permutation')
     fi = rfc.feature_importances_[order]
     ax.barh(inds-width/2, fi, width, label='weighted impurity')

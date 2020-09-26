@@ -25,7 +25,7 @@ def split_data(X, y, test_size=0.1, seed=1):
     if isinstance(test_size, float):
         if test_size <= 0 or test_size >= 1:
             raise ValueError("The test size should fall in the range (0,1)")
-        n_train = round(1 - test_size*n_samples)
+        n_train = n_samples - round(test_size*n_samples)
     elif isinstance(test_size, int):
         n_train = n_samples - test_size
     else:
@@ -37,7 +37,6 @@ def split_data(X, y, test_size=0.1, seed=1):
     y_test = y[n_train:]
 
     return X_train, X_test, y_train, y_test
-
 
 def encode_one_hot(data): # note: pd.get_dummies(df) does the same
     # https://www.kite.com/python/answers/how-to-do-one-hot-encoding-with-numpy-in-python
@@ -72,6 +71,31 @@ def check_sample_size(sample_size, n_samples):
     else:
         raise ValueError("Improper type \'%s\' for sample_size" %type(sample_size))
     return n
+
+def confusion_matrix(y_actual, y_pred):
+    """ Returns a confusion matrix where the rows are the actual classes, and the columns are the predicted classes"""
+    if y_actual.shape != y_pred.shape:
+        raise ValueError ("input arrays must have the same shape, {}!={}".format(y_actual.shape, y_pred.shape))
+    n = max(max(y_actual), max(y_pred)) + 1
+    C = np.zeros((n, n), dtype=int)
+    for cat_true in range(n):
+        idxs_true = (y_actual == cat_true)
+        for cat_pred in range(n):
+            C[cat_true, cat_pred] = sum(y_pred[idxs_true] == cat_pred)
+    return C
+
+def calc_f1_score(y_actual, y_pred) -> Tuple[float]:
+    C = confusion_matrix(y_actual, y_pred)
+    if C.shape[0] != 2:
+        raise ValueError ("input arrays must only have binary values")
+    recall    = C[1][1]/(C[1][0]+C[1][1])
+    precision = C[1][1]/(C[0][1]+C[1][1]) 
+    if (recall == 0) or (precision == 0):
+        f1 = 0
+    else:
+        f1 = 2 * recall*precision/(recall + precision) # = 2/((1/recall)+(1/precision))
+    return recall, precision, f1
+
 
 def perm_feature_importance(model, X, y, n_repeats=10, random_state=None) -> Dict:
     """Calculate feature importance based on random permutations of each feature column.

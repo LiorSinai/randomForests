@@ -15,6 +15,7 @@ Decision tree v3
 import numpy as np
 import pandas as pd
 from utilities import split_data, check_RandomState, encode_one_hot, perm_feature_importance
+from utilities import confusion_matrix
 from typing import List, Tuple, Dict
 
 import time
@@ -95,8 +96,7 @@ class DecisionTree:
         self.split_features.append(None)
         self.split_values.append(None)
         self.n_samples.append(Y.shape[0])
-        self.tree_.children_left.append(-1)
-        self.tree_.children_right.append(-1)
+        self.tree_.add_node()
     
     def _find_varsplit(self, X, Y, depth: int):
         node_id = self.size
@@ -129,9 +129,9 @@ class DecisionTree:
             x_split = X.values[:, self.split_features[node_id]]
             lhs = np.nonzero(x_split<=self.split_values[node_id])
             rhs = np.nonzero(x_split> self.split_values[node_id])
-            self.tree_.children_left[node_id] = self.size
+            self.tree_.set_left_child(node_id, self.size)
             self._find_varsplit(X.iloc[lhs], Y[lhs[0], :], depth+1)
-            self.tree_.children_right[node_id] = self.size
+            self.tree_.set_right_child(node_id, self.size)
             self._find_varsplit(X.iloc[rhs], Y[rhs[0], :], depth+1)
     
     def _find_bettersplit(self, var_idx: int, X, Y, node_id: int, best_score:float) -> float:
@@ -165,8 +165,7 @@ class DecisionTree:
     def _predict_row(self, xi):
         next_node = 0
         while not self.is_leaf(next_node):
-            left = self.tree_.children_left[next_node]
-            right = self.tree_.children_right[next_node]
+            left, right = self.tree_.get_children(next_node)
             next_node = left if xi[self.split_features[next_node]] <= self.split_values[next_node] else right
         return self.values[next_node]
 
@@ -176,8 +175,7 @@ class DecisionTree:
             return self.values[node]
         if len(X) == 0:
             return np.empty((0, self.n_classes))
-        left = self.tree_.children_left[node]
-        right = self.tree_.children_right[node]
+        left, right = self.tree_.get_children(node)
 
         lhs = X[:, self.split_features[node]] <= self.split_values[node]
         rhs = X[:, self.split_features[node]] >  self.split_values[node]
@@ -254,6 +252,18 @@ class BinaryTree():
         "The number of nodes (number of parameters/2) not counting the leaves in the tree"
         return self.size - self.n_leaves
 
+    def add_node(self):
+        self.children_left.append(-1)
+        self.children_right.append(-1)
+    
+    def set_left_child(self, node_id: int, child_id: int):
+        self.children_left[node_id] = child_id
+
+    def set_right_child(self, node_id: int, child_id: int):
+        self.children_right[node_id] = child_id
+
+    def get_children(self, node_id: int): return self.children_left[node_id], self.children_right[node_id]
+
     def find_depths(self):
         depths = np.zeros(self.size, dtype=int)
         depths[0] = -1
@@ -328,6 +338,7 @@ if __name__ == '__main__':
     acc_train = np.mean(y_pred == y_train)
     print("train accuracy: %.2f%%" % (acc_train*100))
     print("test accuracy:  %.2f%%" % (acc_test*100))
+    print(confusion_matrix(y_test, tree.predict(X_test)))
     
     # feature importance
     fi_perm = perm_feature_importance(tree, X_train, y_train, random_state=1) 

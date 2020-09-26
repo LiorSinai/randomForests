@@ -13,7 +13,7 @@ import time
 from typing import List, Tuple, Dict
 
 from DecisionTree import DecisionTree
-from utilities import split_data, check_RandomState, check_sample_size, encode_one_hot, perm_feature_importance
+from utilities import *
 
 class RandomForestClassifier:
     def __init__(self, 
@@ -157,9 +157,11 @@ if __name__ == "__main__":
     # Binary class test with 5000 samples
     file_name = 'tests/UniversalBank_cleaned.csv'
     target = "Personal Loan"
+    n_trees = 20
     # 3-class test with 1000 samples
     # file_name = 'tests/Iris_cleaned.csv'  
     # target = "Species"
+    # n_trees = 10
 
     data = pd.read_csv(file_name)
     X = data.drop(columns=[target])
@@ -167,10 +169,10 @@ if __name__ == "__main__":
     n_samples, n_features = X.shape[0], X.shape[1]
     X_train, X_test, y_train, y_test = split_data(X, y, test_size=0.2, seed=42)
 
-    forest = RandomForestClassifier(n_trees=20, 
+    forest = RandomForestClassifier(n_trees=n_trees, 
                                     bootstrap=True,
                                     sample_size=1.0, # default is None
-                                    max_features=5, # default is None
+                                    max_features='sqrt', # default is None
                                     #max_depth = 5, # default is None
                                     oob_score=True,
                                     min_samples_leaf=3,
@@ -194,6 +196,13 @@ if __name__ == "__main__":
     if hasattr(forest, 'oob_score_'):
         print("oob accuracy:   %.2f%%" % (forest.oob_score_*100))
     print("test accuracy:  %.2f%%" % (acc_test*100))
+    y_pred = forest.predict(X_test)
+    C = confusion_matrix(y_test, y_pred)
+    print(C)
+    if C.shape[0] == 2:
+        precision, recall, f1 = calc_f1_score(y_test, y_pred)
+        print("precision, recall, f1: {:.2f}%, {:.2f}%, {:.2f}%".format(precision*100, recall*100, f1*100))
+        print("")
 
     ### ----------- Feaure importance ----------- ###### 
     start_time = time.time()

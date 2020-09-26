@@ -100,8 +100,8 @@ if __name__ == '__main__':
         # class 1
         #scores[:, 1] += np.logical_and(X['SepalLengthCm'] > 5.0, X['SepalLengthCm'] < 7.0)
         #scores[:, 1] += X['SepalWidthCm'] < 3.5
-        scores[:, 1] += np.logical_and(X['PetalLengthCm'] >= 3.0, X['PetalLengthCm'] <= 5.0) 
-        scores[:, 1] += np.logical_and(X['PetalWidthCm'] >= 1.0, X['PetalWidthCm'] < 1.5) 
+        scores[:, 1] += np.logical_and(X['PetalLengthCm'] > 2.5, X['PetalLengthCm'] <= 5.0) 
+        scores[:, 1] += np.logical_and(X['PetalWidthCm'] >= 1.0, X['PetalWidthCm'] <= 1.8) 
         # class 2
         scores[:, 2] += X['SepalLengthCm'] >= 7.0
         scores[:, 2] += X['SepalWidthCm'] >= 3.5
@@ -109,6 +109,10 @@ if __name__ == '__main__':
         scores[:, 2] += (X['PetalWidthCm'] > 1.7  ) 
 
         preds = np.argmax(scores, axis=1)
+        # set samples with the same score as unknown
+        rows = np.logical_and(scores[:, 1] > 0, scores[:, 2] > 0).nonzero()[0]
+        same = rows[scores[rows,1]==scores[rows,2]]
+        preds[same] =3
         return preds
     y_full = baseline_model(X)
     acc_full = np.mean(y_full == y)

@@ -3,7 +3,7 @@
 
 Random Forests from scratch
 
-Scratchpad
+Compare my RandomForestClassifier to Scikit-learn's RandomForestClassifier on a dataset.
 
 """
 
@@ -17,7 +17,7 @@ import sys
 sys.path.append(".") # hack to add level above to the system path
 
 from TreeEnsemble import RandomForestClassifier as RFC
-from utilities import perm_feature_importance
+from utilities import perm_feature_importance, confusion_matrix, calc_f1_score
 
 def preorder_sk(tree, node_id=0):
     "Pre-order tree traversal"
@@ -173,6 +173,10 @@ if __name__ == '__main__':
     y0 = forest.predict(X_test)
     print("SK Correct predictions: %.3f" % (np.mean(ySk==y_test)))
     print("TE Correct predictions: %.3f" % (np.mean(y0==y_test)))
+    precision, recall, f1 = calc_f1_score(y_test, ySk)
+    print("SK precision, recall, f1: {:.2f}%, {:.2f}%, {:.2f}%".format(precision*100, recall*100, f1*100))
+    precision, recall, f1 = calc_f1_score(y_test, y0)
+    print("TE precision, recall, f1: {:.2f}%, {:.2f}%, {:.2f}%".format(precision*100, recall*100, f1*100))
     print("")
 
     # feature importance
