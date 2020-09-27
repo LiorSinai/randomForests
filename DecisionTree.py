@@ -28,30 +28,35 @@ def gini_score(counts: List[int]) -> float:
     return score
 
 class DecisionTree:
-    def __init__(self, X, Y, max_depth=None, max_features=None, min_samples_leaf=1, random_state=None):
-        self.n_samples, self.n_features = X.shape[0], X.shape[1]
+    def __init__(self, max_depth=None, max_features=None, min_samples_leaf=1, random_state=None):
         self.max_depth = max_depth
         self.max_features = max_features
         self.min_samples_leaf = min_samples_leaf
         self.RandomState = check_RandomState(random_state)
-       
-        if Y.ndim == 1:
-            Y = encode_one_hot(Y) # one-hot encoded y variable
-        elif Y.shape[1] == 1:
-            Y = encode_one_hot(Y) # one-hot encoded y variable
 
-        # initialise arrays
-        self.tree_ = BinaryTree() # tree_.children_left and tree_.children_right
+        # initialise internal variables
+        self.tree_ = BinaryTree() 
         self.n_samples = []
         self.values = []
         self.impurities = []
         self.split_features = []
         self.split_values = []
+        self.n_features = None
+        self.n_classes = None
+        self.features = None
+        self.size = 0 # current node = size - 1
+        
+    def fit(self, X, Y):
+        if Y.ndim == 1:
+            Y = encode_one_hot(Y) # one-hot encoded y variable
+        elif Y.shape[1] == 1:
+            Y = encode_one_hot(Y) # one-hot encoded y variable
 
         # set internal variables
+        self.n_features = X.shape[1]
         self.n_classes = Y.shape[1]
         self.features = X.columns
-        self.max_depth_ = float('inf') if max_depth is None else max_depth
+        self.max_depth_ = float('inf') if self.max_depth is None else self.max_depth
         if self.max_features is not None:
             if self.max_features is 'sqrt':
                 n = np.ceil(np.sqrt(self.n_features)).astype(int)
@@ -62,7 +67,6 @@ class DecisionTree:
         else:
             n = self.n_features 
         self.n_features_split = n
-        self.size = 0 # current node = size - 1
 
         # initial split which recursively calls itself
         self._find_varsplit(X, Y, 0) 
@@ -344,10 +348,11 @@ if __name__ == '__main__':
     y = data[target]
     X_train, X_test, y_train, y_test = split_data(X, y, test_size=0.2, seed=42)
 
-    tree = DecisionTree(X_train, y_train, random_state=0, max_depth=None, min_samples_leaf=1)
+    tree = DecisionTree(random_state=0, max_depth=None, min_samples_leaf=1)
     # from sklearn.tree import DecisionTreeClassifier
     # tree = DecisionTreeClassifier()
-    # tree.fit(X_train, y_train, random_state=42)
+
+    tree.fit(X_train, y_train,)
 
     # descriptors
     print("max depth: %d" % tree.get_max_depth())

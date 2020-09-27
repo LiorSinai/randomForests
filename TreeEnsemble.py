@@ -45,9 +45,14 @@ class RandomForestClassifier:
         elif Y.shape[1] == 1:
             Y = encode_one_hot(Y) # one-hot encoded y variable
 
+        # set internal variables
+        self.n_features = X.shape[1]
+        self.n_classes = Y.shape[1]
+        self.features = X.columns
         n_samples = X.shape[0]
         self.sample_size_ = check_sample_size(self.sample_size, n_samples)
 
+        # create decision trees
         self.trees = []
         rng_states = [] # save the random states to regenerate the random indices for the oob_score
         for i in range(self.n_trees):
@@ -55,16 +60,46 @@ class RandomForestClassifier:
             self.trees.append(self._create_tree(X, Y))
 
         # set attributes
-        self.n_features = X.shape[1]
-        self.n_classes = Y.shape[1]
         self.feature_importances_ = self.impurity_feature_importances()
-
         if self.oob_score:
             if not (self.bootstrap or (self.sample_size_<n_samples)):
                 warnings.warn("out-of-bag score will not be calculated because bootstrap=False")
             else:
                 self.oob_score_ = self.calculate_oob_score(X, Y, rng_states)
-        
+    
+    def _create_tree(self, X, Y):
+        assert len(X) == len(Y), ""
+        n_samples = X.shape[0]
+
+        # get sub-sample 
+        if self.bootstrap:
+            rand_idxs = self.RandomState.randint(0, n_samples, self.sample_size_) # with replacement
+            X_, Y_ = X.iloc[rand_idxs, :], Y[rand_idxs] # approximate unique values =n*(1-np.exp(-sample_size_/n_samples))
+        elif self.sample_size_ < n_samples:
+            rand_idxs = self.RandomState.permutation(np.arange(n_samples))[:self.sample_size_]  # without replacement
+            X_, Y_ = X.iloc[rand_idxs, :], Y[rand_idxs]
+        else:
+            X_, Y_ = X.copy(), Y.copy() # do nothing to the data
+
+        new_tree =  DecisionTree(max_depth=self.max_depth, 
+                                 max_features=self.max_features,
+                                 random_state=self.RandomState,
+                                 min_samples_leaf=self.min_samples_leaf
+                                )
+        new_tree.fit(X_, Y_)
+        return new_tree
+                
+    def predict(self, X):
+        "Predict the class for each sample in X"
+        probs = np.sum([t.predict_prob(X) for t in self.trees], axis=0)
+        #probs = np.sum([t.predict_count(X) for t in self.trees], axis=0)
+        return np.nanargmax(probs, axis=1)
+
+    def score(self, X, y):
+        "The accuracy score of random forest predictions for X to the true classes y"
+        y_pred = self.predict(X)
+        return np.mean(y_pred==y)
+
     def calculate_oob_score(self, X, Y, rng_states):
         n_samples = X.shape[0]
         oob_prob = np.zeros(Y.shape)
@@ -88,38 +123,6 @@ class RandomForestClassifier:
         # predict out-of-bag score
         y_pred = np.argmax(oob_prob/oob_count, axis=1)
         return np.mean(y_pred==y_test)
-                
-    def _create_tree(self, X, Y):
-        assert len(X) == len(Y), ""
-        n_samples = X.shape[0]
-
-        # get sub-sample 
-        if self.bootstrap:
-            rand_idxs = self.RandomState.randint(0, n_samples, self.sample_size_) # with replacement
-            X_, Y_ = X.iloc[rand_idxs, :], Y[rand_idxs] # approximate unique values =n*(1-np.exp(-sample_size_/n_samples))
-        elif self.sample_size_ < n_samples:
-            rand_idxs = self.RandomState.permutation(np.arange(n_samples))[:self.sample_size_]  # without replacement
-            X_, Y_ = X.iloc[rand_idxs, :], Y[rand_idxs]
-        else:
-            X_, Y_ = X.copy(), Y.copy() # do nothing to the data
-
-        return DecisionTree(X_, Y_,
-                            max_depth=self.max_depth, 
-                            max_features=self.max_features,
-                            random_state=self.RandomState,
-                            min_samples_leaf=self.min_samples_leaf
-                            )
-                
-    def predict(self, X):
-        "Predict the class for each sample in X"
-        probs = np.sum([t.predict_prob(X) for t in self.trees], axis=0)
-        #probs = np.sum([t.predict_count(X) for t in self.trees], axis=0)
-        return np.nanargmax(probs, axis=1)
-
-    def score(self, X, y):
-        "The accuracy score of random forest predictions for X to the true classes y"
-        y_pred = self.predict(X)
-        return np.mean(y_pred==y)
 
     def impurity_feature_importances(self) -> np.ndarray:
         """Calculate feature importance weighted by the number of samples affected by this feature at each split point. """
