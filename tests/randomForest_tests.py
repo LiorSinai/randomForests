@@ -60,7 +60,7 @@ class TestRandomForest(unittest.TestCase):
     def full_tree(self):
         X_train, X_test, y_train, y_test = self.data
         
-        forest = RandomForestClassifier(n_trees=1, bootstrap=True, max_features='sqrt', random_state=42)
+        forest = RandomForestClassifier(n_trees=1, bootstrap=True, max_features=4, random_state=42)
         forest.fit(X_train, y_train)
 
         tree0 = forest.trees[0]
@@ -81,7 +81,7 @@ class TestRandomForest(unittest.TestCase):
     def full_forest(self):
         X_train, X_test, y_train, y_test = self.data
 
-        forest = RandomForestClassifier(n_trees=20, bootstrap=True, max_features='sqrt', random_state=42, oob_score=True)
+        forest = RandomForestClassifier(n_trees=20, bootstrap=True, max_features=4, random_state=42, oob_score=True)
         forest.fit(X_train, y_train)
 
         depths =[t.get_max_depth() for t in forest.trees]
