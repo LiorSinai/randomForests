@@ -22,6 +22,7 @@ from utilities import calc_f1_score
 if __name__ == '__main__':
     #### -------------- load data  -------------- ###
     file_name = "tests/UniversalBank_cleaned.csv"
+    #file_name = "tests/UniversalBank_one_hot.csv"
     target = "Personal Loan"
 
     data = pd.read_csv(file_name)
@@ -51,7 +52,7 @@ if __name__ == '__main__':
     print("test accuracy:  %.2f%%" % (acc_test*100))
     print(confusion_matrix(y, y_full))
     precision, recall, f1 = calc_f1_score(y, y_full)
-    print("precision, recall, f1: {:.2f}%, {:.2f}%, {:.2f}%".format(precision*100, recall*100, f1*100))
+    print("precision, recall, f1: {:.2f}%, {:.2f}%, {:.4f}".format(precision*100, recall*100, f1))
     print("")
     
     #### -------------- random forest classifier  -------------- ###
@@ -72,7 +73,6 @@ if __name__ == '__main__':
     print("fitting time: {:4f}s".format(end_time-start_time))
 
 
-
     # display descriptors
     depths =[e.get_depth() for e in rfc.estimators_]
     n_leaves = [e.get_n_leaves() for e in rfc.estimators_]
@@ -80,29 +80,31 @@ if __name__ == '__main__':
     acc_train = rfc.score(X_train, y_train)
     print("depth range, average:    %d-%d, %.2f" % (np.min(depths), np.max(depths), np.mean(depths)))
     print("n_leaves range, average: %d-%d, %.2f" % (np.min(n_leaves), np.max(n_leaves), np.mean(n_leaves)))
+    print("train accuracy: %.2f%%" % (acc_train*100))
     if hasattr(rfc, 'oob_score_'):
         print("oob accuracy:   %.2f%%" % (rfc.oob_score_*100))
-    print("train accuracy: %.2f%%" % (acc_train*100))
     print("test accuracy:  %.2f%%" % (acc_test*100))
     y_pred = rfc.predict(X_test)
     print(confusion_matrix(y_test, y_pred))
     precision, recall, f1 = calc_f1_score(y_test, y_pred)
-    print("precision, recall, f1: {:.2f}%, {:.2f}%, {:.2f}%".format(precision*100, recall*100, f1*100))
+    print("precision, recall, f1: {:.2f}%, {:.2f}%, {:.4f}".format(precision*100, recall*100, f1))
     print("")
 
     # feature importance
     fi = permutation_importance(rfc, X_train, y_train)
-    fi_means = fi.importances_mean
-    fi_std = fi.importances_std
+    fi_means = fi.importances_mean/(fi.importances_mean.sum())
+    fi_std = fi.importances_std/(fi.importances_mean.sum())
     order = np.argsort(fi_means) # order by magnitude of the permutation importances
+
+    target_corrs = data.corr()[target].drop(target, axis= 0) # correlations
+    target_corrs = abs(target_corrs)/sum(abs(target_corrs))
 
     fig, ax = plt.subplots()
     inds = np.arange(n_features)
     width = 0.4
-    fi = fi_means[order]/fi_means.sum() # sort and normalise
-    ax.barh(inds+width/2, fi, width, xerr=fi_std[order], label='permutation')
-    fi = rfc.feature_importances_[order]
-    ax.barh(inds-width/2, fi, width, label='weighted impurity')
+    ax.barh(inds+width/2, fi_means[order], width, xerr=fi_std[order], label='permutation')
+    ax.barh(inds-width/2, rfc.feature_importances_[order], width, label='weighted impurity')
+    #ax.barh(inds-width/2, target_corrs[order], width, label='correlation')
     #ax.grid(True)
     ax.legend(loc='upper right', bbox_to_anchor=(1, 0.85))
     ax.set_yticks(inds)

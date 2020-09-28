@@ -183,7 +183,7 @@ if __name__ == "__main__":
     print(C)
     if C.shape[0] == 2:
         precision, recall, f1 = calc_f1_score(y_test, y_pred)
-        print("precision, recall, f1: {:.2f}%, {:.2f}%, {:.2f}%".format(precision*100, recall*100, f1*100))
+        print("precision, recall, f1: {:.2f}%, {:.2f}%, {:.4f}".format(precision*100, recall*100, f1))
         print("")
 
     ### ----------- Feaure importance ----------- ###### 
@@ -199,20 +199,28 @@ if __name__ == "__main__":
         for col, val in zip(X_train.columns[order], fi[order]):
             print('%-15s %.4f' % (col+':', val)) 
 
-    #import matplotlib.pyplot as plt # comment out to avoid dependency 
-    # order = np.argsort(fi_perm['means'])
+    # import matplotlib.pyplot as plt # comment out to avoid dependency 
+    # plt.rcParams.update({'font.size': 14})
+
+    # fi_means = fi_perm['means']/(fi_perm['means'].sum())
+    # fi_std = fi_perm['stds']/(fi_perm['means'].sum())
+    # order = np.argsort(fi_means) # order by magnitude of the permutation importances
+
+    # target_corrs = data.corr()[target].drop(target, axis= 0) # correlations
+    # target_corrs = abs(target_corrs)/sum(abs(target_corrs))
 
     # fig, ax = plt.subplots()
     # inds = np.arange(n_features)
     # width = 0.4
-    # fi = fi_perm['means'][order]/fi_perm['means'].sum()
-    # ax.barh(inds+width/2, fi, width, xerr=fi_perm['stds'][order], label='permutation')
-    # fi = forest.feature_importances_[order]
-    # ax.barh(inds-width/2, fi, width, label='weighted impurity')
+    # ax.barh(inds+width/2, fi_means[order], width, xerr=fi_std[order], label='permutation')
+    # ax.barh(inds-width/2, forest.feature_importances_[order], width, label='weighted impurity')
+    # #ax.barh(inds-width/2, target_corrs[order], width, label='correlation')
     # #ax.grid(True)
     # ax.legend(loc='upper right', bbox_to_anchor=(1, 0.85))
     # ax.set_yticks(inds)
-    # ax.set_yticklabels(X.columns[order])
+    # features = X.columns.values
+    # features[7] ='Securities\nAccount' # make it easier to plot on axis
+    # ax.set_yticklabels(features[order])
     # ax.set_ylabel('feature')
     # ax.set_xlabel('relative feature importance score')
     # ax.set_title("Feature importances")
@@ -230,5 +238,5 @@ if __name__ == "__main__":
     # ax.set_xlabel("number of trees")
     # ax.set_ylabel("accuracy")
 
-    # plt.show()
+    #plt.show()
 

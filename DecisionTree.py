@@ -14,10 +14,11 @@ Decision tree v3
 
 import numpy as np
 import pandas as pd
-from utilities import *
 from typing import List, Tuple, Dict
 
 import time
+
+from utilities import *
 
 def gini_score(counts: List[int]) -> float: 
     score = 1
@@ -59,7 +60,7 @@ class DecisionTree:
         self.max_depth_ = float('inf') if self.max_depth is None else self.max_depth
         if self.max_features is not None:
             if self.max_features is 'sqrt':
-                n = np.ceil(np.sqrt(self.n_features)).astype(int)
+                n = int(np.sqrt(self.n_features))
             elif isinstance(self.max_features, int):
                 n = min(self.max_features, self.n_features)
             else:
@@ -69,7 +70,7 @@ class DecisionTree:
         self.n_features_split = n
 
         # initial split which recursively calls itself
-        self._find_varsplit(X, Y, 0) 
+        self._split_node(X, Y, 0) 
 
         # set attributes
         self.feature_importances_ = self.impurity_feature_importance()
@@ -102,7 +103,7 @@ class DecisionTree:
         self.n_samples.append(Y.shape[0])
         self.tree_.add_node()
     
-    def _find_varsplit(self, X, Y, depth: int):
+    def _split_node(self, X, Y, depth: int):
         node_id = self.size
         self.size += 1
         self._set_defaults(node_id, Y)
@@ -121,10 +122,10 @@ class DecisionTree:
                 return
             # a split was not made, either because all X values are the same or because min_samples_leaf was not satisfied
             # try all other features to force a split
-            features2 = np.setxor1d(np.arange(self.n_features), features)
-            features2 = self.RandomState.permutation(list(features2))
-            for i in features2:
-                best_score = self._find_bettersplit(i, X, Y, node_id, best_score)
+            # features2 = np.setxor1d(np.arange(self.n_features), features)
+            # features2 = self.RandomState.permutation(list(features2))
+            # for i in features2:
+            #     best_score = self._find_bettersplit(i, X, Y, node_id, best_score)
             if best_score == float('inf'):
                 return # give up
 
@@ -134,9 +135,9 @@ class DecisionTree:
             lhs = np.nonzero(x_split<=self.split_values[node_id])
             rhs = np.nonzero(x_split> self.split_values[node_id])
             self.tree_.set_left_child(node_id, self.size)
-            self._find_varsplit(X.iloc[lhs], Y[lhs[0], :], depth+1)
+            self._split_node(X.iloc[lhs], Y[lhs[0], :], depth+1)
             self.tree_.set_right_child(node_id, self.size)
-            self._find_varsplit(X.iloc[rhs], Y[rhs[0], :], depth+1)
+            self._split_node(X.iloc[rhs], Y[rhs[0], :], depth+1)
     
     def _find_bettersplit(self, var_idx: int, X, Y, node_id: int, best_score:float) -> float:
         X = X.values[:, var_idx] 
@@ -243,19 +244,19 @@ class DecisionTree:
         var_idx    = self.split_features[node_id]
         split_val  = self.split_values[node_id]
         if self.is_leaf(node_id):
-            return n_samples, val
+            return n_samples, val, impurity
         else:
             return n_samples, val, var_idx, split_val, impurity
 
     def node_to_string(self, node_id: int) -> str:
         if self.is_leaf(node_id):
-            n_samples, val = self.get_info(node_id)
-            s = 'n_samples: {:d}; val: {}'.format(n_samples, val)
+            n_samples, val, impurity = self.get_info(node_id)
+            s = 'n_samples: {:d}; value: {}; impurity: {:.4f}'.format(n_samples, val.astype(int), impurity)
         else:
             n_samples, val, var_idx, split_val, impurity = self.get_info(node_id)
             split_name = self.split_name(node_id)
-            s =  'n_samples: {:d}; val: {}'.format(n_samples, val)
-            s += ' score: {:.5f}; split: {}<={:.3f}'.format(impurity, split_name, split_val)
+            s =  'n_samples: {:d}; value: {}; impurity: {:.4f}'.format(n_samples, val.astype(int), impurity)
+            s += '; split: {}<={:.3f}'.format(split_name, split_val)
         return s
 
 
@@ -348,7 +349,7 @@ if __name__ == '__main__':
     y = data[target]
     X_train, X_test, y_train, y_test = split_data(X, y, test_size=0.2, seed=42)
 
-    tree = DecisionTree(random_state=0, max_depth=None, min_samples_leaf=1)
+    tree = DecisionTree(random_state=0,max_depth=None, min_samples_leaf=3,max_features='sqrt')
     # from sklearn.tree import DecisionTreeClassifier
     # tree = DecisionTreeClassifier()
 
@@ -371,7 +372,7 @@ if __name__ == '__main__':
     print(C)
     if C.shape[0] == 2:
         precision, recall, f1 = calc_f1_score(y_test, y_pred)
-        print("precision, recall, F1: {:.2f}%, {:.2f}%, {:.2f}%".format(precision*100, recall*100, f1*100))
+        print("precision, recall, F1: {:.2f}%, {:.2f}%, {:.4f}".format(precision*100, recall*100, f1))
     print("")
     
     # feature importance

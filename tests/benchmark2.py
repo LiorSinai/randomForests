@@ -174,9 +174,9 @@ if __name__ == '__main__':
     print("SK Correct predictions: %.3f" % (np.mean(ySk==y_test)))
     print("TE Correct predictions: %.3f" % (np.mean(y0==y_test)))
     precision, recall, f1 = calc_f1_score(y_test, ySk)
-    print("SK precision, recall, f1: {:.2f}%, {:.2f}%, {:.2f}%".format(precision*100, recall*100, f1*100))
+    print("SK precision, recall, f1: {:.2f}%, {:.2f}, {:.4f}".format(precision*100, recall*100, f1))
     precision, recall, f1 = calc_f1_score(y_test, y0)
-    print("TE precision, recall, f1: {:.2f}%, {:.2f}%, {:.2f}%".format(precision*100, recall*100, f1*100))
+    print("TE precision, recall, f1: {:.2f}%, {:.2f}, {:.4f}".format(precision*100, recall*100, f1))
     print("")
 
     # feature importance

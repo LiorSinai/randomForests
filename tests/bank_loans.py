@@ -29,13 +29,19 @@ if __name__ == '__main__':
     ## Drop columns which are not significant
     data.drop(["ID","ZIP Code"], axis=1,inplace=True)
     ## Convert Categorical Columns to Dummies
-    cat_cols = ["Family","Education","Personal Loan","Securities Account","CD Account","Online","CreditCard"]
+    cat_cols = ["Family","Education"]##,"Personal Loan","Securities Account","CD Account","Online","CreditCard"]
     #data = pd.get_dummies(data,columns=cat_cols,drop_first=True)  # one_hot encode
     for col in cat_cols:
         data[col] = data[col].astype('category').cat.codes
 
     print("\nafter processing:")
     print(data.head())
+
+    #### --------------  save data  -------------- ###
+
+    # save data
+    data.to_csv(file_name[:-4]+'_cleaned.csv', index=False)
+    #data.to_csv(file_name[:-4]+'_one_hot.csv', index=False)
     
     #### -------------- inspect data  -------------- ###
     n_samples, n_features = data.shape
@@ -109,10 +115,5 @@ if __name__ == '__main__':
 
     for f, bin in zip(*freqs):
         print('%d %.2f%%' % (bin, f/n_approved*100))
-
-    #### --------------  save data  -------------- ###
-
-    # save data
-    #data.to_csv(file_name[:-4]+'_cleaned.csv', index=False)
 
     plt.show()
