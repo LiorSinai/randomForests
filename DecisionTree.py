@@ -110,7 +110,7 @@ class DecisionTree:
         if self.impurities[node_id] == 0: # only one class in this node
             return
         
-        # random shuffling ensures a random variable is used if 2 splits are equal or if all features are used
+         # random shuffling removes any bias due to the feature order
         features = self.RandomState.permutation(self.n_features)[:self.n_features_split]
 
         # make the split
@@ -118,16 +118,17 @@ class DecisionTree:
         for i in features:
             best_score= self._find_bettersplit(i, X, Y, node_id, best_score)
         if best_score == float('inf'):
-            if X.shape[0] <= self.min_samples_leaf:
-                return
-            # a split was not made, either because all X values are the same or because min_samples_leaf was not satisfied
-            # try all other features to force a split
+            return
+            # if X.shape[0] <= self.min_samples_leaf:
+            #     return
+            # ## a split was not made, either because all X values are the same or because min_samples_leaf was not satisfied
+            # ## try all other features to force a split -> Can increases overfitting
             # features2 = np.setxor1d(np.arange(self.n_features), features)
             # features2 = self.RandomState.permutation(list(features2))
             # for i in features2:
             #     best_score = self._find_bettersplit(i, X, Y, node_id, best_score)
-            if best_score == float('inf'):
-                return # give up
+            # if best_score == float('inf'):
+            #     return # give up
 
         # make children
         if depth < self.max_depth_: 
@@ -151,8 +152,8 @@ class DecisionTree:
         rhs_count = Y.sum(axis=0)
         lhs_count = np.zeros(rhs_count.shape)
         for i in range(0, n_samples-1):
-            xi, yi = X_sort[i], np.argmax(Y_sort[i, :])
-            lhs_count[yi] += 1;  rhs_count[yi] -= 1
+            xi, yi = X_sort[i], Y_sort[i, :]
+            lhs_count += yi;  rhs_count -= yi
             if (xi == X_sort[i+1]) or (sum(lhs_count) < self.min_samples_leaf):
                 continue
             if sum(rhs_count) < self.min_samples_leaf:
