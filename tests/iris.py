@@ -14,6 +14,12 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix
 
+# for plotting the tree
+import sklearn.tree
+import graphviz 
+import os
+os.environ["PATH"] += os.pathsep + 'C:/Users/sinai/Anaconda3/envs/MachineLearning/Library/bin/' # else graphviz doesn't work
+
 if __name__ == '__main__':
     ### Settings
     plt.rcParams.update({'font.size': 14})
@@ -127,7 +133,7 @@ if __name__ == '__main__':
     print("")
 
     #### --------------  random forest model  -------------- ###
-    rfc = RandomForestClassifier(random_state=42, n_estimators=20, min_samples_leaf=1)
+    rfc = RandomForestClassifier(random_state=42, n_estimators=20, min_samples_leaf=3, bootstrap=True, max_features='sqrt')
     rfc.fit(X_train, y_train)
 
     acc_test = rfc.score(X_test, y_test)
@@ -151,7 +157,18 @@ if __name__ == '__main__':
     ax.set_xlabel("number of trees")
     ax.set_ylabel("accuracy")
 
+    ### ----------- Plot tree ----------- ######   
+    k = 0
+    if 1==1:
+        fig, ax = plt.subplots()
+        sklearn.tree.plot_tree(rfc.estimators_[k], ax=ax)
+        ax.set_title("iris_tree_%d"%k)
+
+    if 1==0:
+        dot_data = sklearn.tree.export_graphviz(rfc.estimators_[k], out_file=None) 
+        graph = graphviz.Source(dot_data) 
+        graph.render("iris_tree_%d" % k) 
+
     plt.show()
 
 
-    plt.show()

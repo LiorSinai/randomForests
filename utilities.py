@@ -13,7 +13,7 @@ import warnings
 from typing import List, Tuple, Dict
 
 
-def split_data(X, y, test_size=0.1, seed=1):
+def split_data(X, y, test_size=0.1, seed=None):
     # shuffle data
     np.random.seed(seed)
     perm = np.random.permutation(X.index)
@@ -88,8 +88,8 @@ def calc_f1_score(y_actual, y_pred) -> Tuple[float]:
     C = confusion_matrix(y_actual, y_pred)
     if C.shape[0] != 2:
         raise ValueError ("input arrays must only have binary values")
-    recall    = C[1][1]/(C[1][0]+C[1][1])
-    precision = C[1][1]/(C[0][1]+C[1][1]) 
+    recall    = C[1][1]/(C[1][0]+C[1][1]) #true positive/actual positive
+    precision = C[1][1]/(C[0][1]+C[1][1]) #true positive/predicted positive
     if (recall == 0) or (precision == 0):
         f1 = 0
     else:
@@ -100,7 +100,6 @@ def calc_f1_score(y_actual, y_pred) -> Tuple[float]:
 def perm_feature_importance(model, X, y, n_repeats=10, random_state=None) -> Dict:
     """Calculate feature importance based on random permutations of each feature column.
     The larger the drop in accuracy from shuffling each column, the higher the feature importance.
-
     """
     if getattr(model, 'predict', None) is None:
         raise Exception("model does not have a predict method")

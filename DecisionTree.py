@@ -70,7 +70,7 @@ class DecisionTree:
         self.n_features_split = n
 
         # initial split which recursively calls itself
-        self._split_node(X, Y, 0) 
+        self._split_node(X, Y) 
 
         # set attributes
         self.feature_importances_ = self.impurity_feature_importance()
@@ -103,42 +103,48 @@ class DecisionTree:
         self.n_samples.append(Y.shape[0])
         self.tree_.add_node()
     
-    def _split_node(self, X, Y, depth: int):
-        node_id = self.size
-        self.size += 1
-        self._set_defaults(node_id, Y)
-        if self.impurities[node_id] == 0: # only one class in this node
-            return
-        
-         # random shuffling removes any bias due to the feature order
-        features = self.RandomState.permutation(self.n_features)[:self.n_features_split]
+    def _split_node(self, X0, Y0):
+        stack = [(X0, Y0, -1, -1, 0)] # stack = [(X, Y, parent, side, depth)]
+        while stack:
+            X, Y, parent, side, depth = stack.pop()
+            node_id = self.size
+            self.size += 1
+            self._set_defaults(node_id, Y)
+            if side is 0:
+                self.tree_.set_left_child(parent, node_id)
+            elif side is 1:
+                self.tree_.set_right_child(parent, node_id)
+            if self.impurities[node_id] == 0: # only one class in this node
+                continue
+            
+            # random shuffling removes any bias due to the feature order
+            features = self.RandomState.permutation(self.n_features)[:self.n_features_split]
 
-        # make the split
-        best_score = float('inf')
-        for i in features:
-            best_score= self._find_bettersplit(i, X, Y, node_id, best_score)
-        if best_score == float('inf'):
-            return
-            # if X.shape[0] <= self.min_samples_leaf:
-            #     return
-            # ## a split was not made, either because all X values are the same or because min_samples_leaf was not satisfied
-            # ## try all other features to force a split -> Can increases overfitting
-            # features2 = np.setxor1d(np.arange(self.n_features), features)
-            # features2 = self.RandomState.permutation(list(features2))
-            # for i in features2:
-            #     best_score = self._find_bettersplit(i, X, Y, node_id, best_score)
-            # if best_score == float('inf'):
-            #     return # give up
+            # make the split
+            best_score = float('inf')
+            for i in features:
+                best_score= self._find_bettersplit(i, X, Y, node_id, best_score)
+            if best_score == float('inf'):
+                continue
+                # if X.shape[0] <= self.min_samples_leaf:
+                #     return
+                # ## a split was not made, either because all X values are the same or because min_samples_leaf was not satisfied
+                # ## try all other features to force a split -> Can increases overfitting
+                # features2 = np.setxor1d(np.arange(self.n_features), features)
+                # features2 = self.RandomState.permutation(list(features2))
+                # for i in features2:
+                #     best_score = self._find_bettersplit(i, X, Y, node_id, best_score)
+                # if best_score == float('inf'):
+                #     return # give up
 
-        # make children
-        if depth < self.max_depth_: 
-            x_split = X.values[:, self.split_features[node_id]]
-            lhs = np.nonzero(x_split<=self.split_values[node_id])
-            rhs = np.nonzero(x_split> self.split_values[node_id])
-            self.tree_.set_left_child(node_id, self.size)
-            self._split_node(X.iloc[lhs], Y[lhs[0], :], depth+1)
-            self.tree_.set_right_child(node_id, self.size)
-            self._split_node(X.iloc[rhs], Y[rhs[0], :], depth+1)
+            # make children
+            if depth < self.max_depth_: 
+                x_split = X.values[:, self.split_features[node_id]]
+                lhs = np.nonzero(x_split<=self.split_values[node_id])
+                rhs = np.nonzero(x_split> self.split_values[node_id])
+                stack.append((X.iloc[rhs], Y[rhs[0], :], node_id, 1, depth+1)) # right first in, last out
+                stack.append((X.iloc[lhs], Y[lhs[0], :], node_id, 0, depth+1)) # left first out
+
     
     def _find_bettersplit(self, var_idx: int, X, Y, node_id: int, best_score:float) -> float:
         X = X.values[:, var_idx] 
@@ -151,7 +157,7 @@ class DecisionTree:
         #Start with all on the right. Then move one sample to left one at a time
         rhs_count = Y.sum(axis=0)
         lhs_count = np.zeros(rhs_count.shape)
-        for i in range(0, n_samples-1):
+        for i in range(0, len(X_sort)-1):
             xi, yi = X_sort[i], Y_sort[i, :]
             lhs_count += yi;  rhs_count -= yi
             if (xi == X_sort[i+1]) or (sum(lhs_count) < self.min_samples_leaf):
@@ -334,62 +340,3 @@ class BinaryTree():
         if right != -1:
             for leaf in self.preorder(right):
                 yield leaf
-
-if __name__ == '__main__':
-    # load Data
-    # Binary class test with 5000 samples
-    file_name = 'tests/UniversalBank_cleaned.csv'
-    target = "Personal Loan"
-    # 3-class test with 1000 samples
-    # file_name = 'tests/Iris_cleaned.csv'  
-    # target = "Species"
-
-    # Load Data
-    data = pd.read_csv(file_name)
-    X = data.drop(columns=[target])
-    y = data[target]
-    X_train, X_test, y_train, y_test = split_data(X, y, test_size=0.2, seed=42)
-
-    tree = DecisionTree(random_state=0,max_depth=None, min_samples_leaf=3,max_features='sqrt')
-    # from sklearn.tree import DecisionTreeClassifier
-    # tree = DecisionTreeClassifier()
-
-    tree.fit(X_train, y_train,)
-
-    # descriptors
-    print("max depth: %d" % tree.get_max_depth())
-    print("n_splits:  %d" % tree.get_n_splits())
-    print("n_leaves:  %d" % tree.get_n_leaves())
-
-    # accuracy
-    y_pred = tree.predict(X_test)
-    acc_test = np.mean(y_pred == y_test)
-    y_pred = tree.predict(X_train)
-    acc_train = np.mean(y_pred == y_train)
-    print("train accuracy: %.2f%%" % (acc_train*100))
-    print("test accuracy:  %.2f%%" % (acc_test*100))
-    y_pred = tree.predict(X_test)
-    C = confusion_matrix(y_test, y_pred)
-    print(C)
-    if C.shape[0] == 2:
-        precision, recall, f1 = calc_f1_score(y_test, y_pred)
-        print("precision, recall, F1: {:.2f}%, {:.2f}%, {:.4f}".format(precision*100, recall*100, f1))
-    print("")
-    
-    # feature importance
-    fi_perm = perm_feature_importance(tree, X_train, y_train, random_state=1) 
-    fi1 = fi_perm['means']
-    fi2 = tree.feature_importances_
-    for fi in (fi1, fi2):
-        order = np.argsort(fi)[::-1] # descending order
-        print("Feature importances")
-        for col, val in zip(X_train.columns[order], fi[order]):
-            print('%-15s %.4f' % (col+':', val)) 
-    print("")
-
-    depths = tree.depths
-    for i, leaf in enumerate(tree.tree_.preorder()):
-        d = depths[leaf]
-        print('%03d'%i,'-'*d, tree.node_to_string(leaf))
-        #print('%03d'%i,'-'*d, leaf)
-    
